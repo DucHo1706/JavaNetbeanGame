@@ -209,72 +209,74 @@ private String generateLevelData(int level) {
                    ":MONSTERS:3,3,TINH;20,3,TINH;6,5,LENXUONG;16,5,LENXUONG;9,7,TRAIPHAI;14,7,TRAIPHAI;4,9,LENXUONG;18,9,LENXUONG;8,11,TINH;15,11,TINH;11,13,TINH;5,2,LENXUONG;18,2,LENXUONG;11,8,LENXUONG;7,12,TRAIPHAI;16,12,TRAIPHAI";
                    
         default:
-            return "SIMPLE:24x16:WALLS:" +
-                   // Outer walls (chỉ 3 mặt, để lại lối thoát ở dưới)
-                   "0,0;1,0;2,0;3,0;4,0;5,0;6,0;7,0;8,0;9,0;10,0;11,0;12,0;13,0;14,0;15,0;16,0;17,0;18,0;19,0;20,0;21,0;22,0;23,0;" +
-                   "0,1;0,2;0,3;0,4;0,5;0,6;0,7;0,8;0,9;0,10;0,11;0,12;0,13;0,14;0,15;" +
-                   "23,1;23,2;23,3;23,4;23,5;23,6;23,7;23,8;23,9;23,10;23,11;23,12;23,13;23,14;23,15;" +
-                   // Inner maze - tạo đường đi thú vị
-                   "2,2;3,2;4,2;5,2;6,2;8,2;9,2;10,2;12,2;13,2;14,2;16,2;17,2;18,2;20,2;21,2;" +
-                   "2,3;6,3;10,3;14,3;18,3;21,3;" +
-                   "2,4;3,4;6,4;7,4;10,4;11,4;14,4;15,4;18,4;19,4;21,4;" +
-                   "6,5;11,5;15,5;19,5;" +
-                   "1,6;2,6;4,6;5,6;6,6;8,6;9,6;11,6;12,6;15,6;16,6;19,6;20,6;22,6;" +
-                   "4,7;8,7;12,7;16,7;20,7;" +
-                   "4,8;5,8;8,8;9,8;12,8;13,8;16,8;17,8;20,8;21,8;" +
-                   "1,9;5,9;9,9;17,9;21,9;" +
-                   "1,10;2,10;5,10;6,10;9,10;10,10;13,10;14,10;17,10;18,10;21,10;22,10;" +
-                   "2,11;6,11;10,11;14,11;18,11;22,11;" +
-                   "2,12;3,12;6,12;7,12;10,12;11,12;14,12;15,12;18,12;19,12;22,12;" +
-                   "3,13;7,13;11,13;15,13;19,13" +
-                   ":WATER:1,14:FIRE:22,14:DOOR:11,1" +
-                   ":MONSTERS:7,3,LENXUONG;15,5,TRAIPHAI;3,8,TINH;19,9,LENXUONG;11,11,TRAIPHAI;5,13,LENXUONG;17,13,TINH";
+            return generateLevelData(1);
     }
 }
     
 
     
-    // Tạo Level object
+ // Tạo Level object bằng cách parse string từ generateLevelData()
 private Level createLevel(int level) {
-    switch (level) {
-        case 1:          
-            return new Level("SIMPLE", 24, 16, 
-                Arrays.asList(
-                    // Outer walls
-                    new Point(2,2), new Point(3,2), new Point(4,2), new Point(5,2), new Point(7,2), new Point(8,2),
-                    new Point(10,2), new Point(11,2), new Point(13,2), new Point(14,2), new Point(16,2), new Point(17,2),
-                    new Point(19,2), new Point(20,2), new Point(21,2),
-                    // Inner maze walls (simplified list)
-                    new Point(2,4), new Point(4,4), new Point(6,4), new Point(8,4), new Point(10,4), new Point(12,4),
-                    new Point(14,4), new Point(16,4), new Point(18,4), new Point(20,4)
-                ),
-                new Point(1, 1), new Point(22, 14), new Point(11, 1));
-                
-        case 2:
-            return new Level("MEDIUM", 24, 16,
-                Arrays.asList(
-                    // More complex walls for level 2
-                    new Point(1,1), new Point(2,1), new Point(4,1), new Point(5,1), new Point(7,1), new Point(8,1),
-                    new Point(10,1), new Point(12,1), new Point(14,1), new Point(15,1), new Point(17,1), new Point(18,1),
-                    new Point(20,1), new Point(21,1)
-                ),
-                new Point(4, 14), new Point(18, 1), new Point(11, 15));
-                
-        case 3:
-            return new Level("HARD", 24, 16,
-                Arrays.asList(
-                    // Very complex walls for level 3
-                    new Point(1,1), new Point(2,1), new Point(4,1), new Point(5,1), new Point(7,1), new Point(8,1),
-                    new Point(10,1), new Point(12,1), new Point(14,1), new Point(15,1), new Point(17,1), new Point(18,1),
-                    new Point(20,1), new Point(21,1), new Point(2,2), new Point(4,2), new Point(7,2), new Point(10,2)
-                ),
-                new Point(22, 1), new Point(1, 14), new Point(11, 15));
-                
-        default:
-            return createLevel(1);
-    }
+    String levelData = generateLevelData(level);
+    return parseLevelData(levelData);
 }
+
+// Method parse string thành Level object
+private Level parseLevelData(String levelData) {
+    String[] parts = levelData.split(":");
     
+ 
+    String difficulty = parts[0]; // "SIMPLE", "MEDIUM", "HARD"
+    
+
+    String[] sizeParts = parts[1].split("x");
+    int width = Integer.parseInt(sizeParts[0]);
+    int height = Integer.parseInt(sizeParts[1]);
+    
+
+    List<Point> walls = new ArrayList<>();
+    if (parts.length > 3 && parts[2].equals("WALLS")) {
+        String[] wallCoords = parts[3].split(";");
+        for (String coord : wallCoords) {
+            if (!coord.trim().isEmpty()) {
+                String[] xy = coord.split(",");
+                walls.add(new Point(Integer.parseInt(xy[0]), Integer.parseInt(xy[1])));
+            }
+        }
+    }
+    
+
+    Point waterStart = null;
+    for (int i = 4; i < parts.length - 1; i++) {
+        if (parts[i].equals("WATER")) {
+            String[] coords = parts[i + 1].split(",");
+            waterStart = new Point(Integer.parseInt(coords[0]), Integer.parseInt(coords[1]));
+            break;
+        }
+    }
+    
+
+    Point fireStart = null;
+    for (int i = 4; i < parts.length - 1; i++) {
+        if (parts[i].equals("FIRE")) {
+            String[] coords = parts[i + 1].split(",");
+            fireStart = new Point(Integer.parseInt(coords[0]), Integer.parseInt(coords[1]));
+            break;
+        }
+    }
+    
+
+    Point door = null;
+    for (int i = 4; i < parts.length - 1; i++) {
+        if (parts[i].equals("DOOR")) {
+            String[] coords = parts[i + 1].split(",");
+            door = new Point(Integer.parseInt(coords[0]), Integer.parseInt(coords[1]));
+            break;
+        }
+    }
+    
+    return new Level(difficulty, width, height, walls, waterStart, fireStart, door);
+}
 
     public Map<String, Point> getPlayerPositions() {
         return playerPositions;
