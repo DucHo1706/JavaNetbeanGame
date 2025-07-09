@@ -40,7 +40,7 @@ public PlayerType addPlayer(Socket socket, String playerId) {
         e.printStackTrace();
     }
     
-    // SỬA: Dùng PlayerType enum thay vì hardcode string
+   
     PlayerType playerType = players.size() == 1 ? PlayerType.FIRE : PlayerType.WATER;
     playerTypes.put(playerId, playerType);
     

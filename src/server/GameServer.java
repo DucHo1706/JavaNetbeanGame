@@ -22,14 +22,10 @@ public class GameServer {
     
     public void start() throws IOException {
         serverSocket = new ServerSocket(Constants.SERVER_PORT);
-        isRunning = true;
-        System.out.println(" Fire Water Game Server started on port " + Constants.SERVER_PORT);
-        System.out.println("Waiting for players to connect...");
-        
+        isRunning = true;        
         while (isRunning) {
             try {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("New player connected: " + clientSocket.getInetAddress());
                 new Thread(() -> handleClient(clientSocket)).start();
             } catch (IOException e) {
                 if (isRunning) {
