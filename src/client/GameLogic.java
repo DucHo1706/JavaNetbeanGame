@@ -128,15 +128,15 @@ public class GameLogic {
         
         String playerType = gamePanel.getPlayerType();
         Point myPlayer = gamePanel.getMyPlayer();
-        
-        if ("FIRE".equals(playerType)) {
-            Point fireStart = currentLevel.getFireStart();
-            myPlayer.setLocation(fireStart);
-            gamePanel.getFirePlayer().setLocation(fireStart);
-        } else if ("WATER".equals(playerType)) {
+
+        if("FIRE".equals(playerType) || "WATER".equals(playerType))
+        {
             Point waterStart = currentLevel.getWaterStart();
+            Point fireStart = currentLevel.getFireStart();
             myPlayer.setLocation(waterStart);
+            myPlayer.setLocation(fireStart);
             gamePanel.getWaterPlayer().setLocation(waterStart);
+            gamePanel.getFirePlayer().setLocation(fireStart);
         }
         
         gamePanel.setStatus("Bị monster tấn công! Quay lại vị trí ban đầu.");
