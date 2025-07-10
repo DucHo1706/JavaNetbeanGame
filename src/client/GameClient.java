@@ -8,14 +8,11 @@ import java.awt.event.KeyListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
-/**
- * Client chính của trò chơi Lửa và Nước
- */
 public class GameClient extends JFrame implements KeyListener {
-    private NetworkManager networkManager;          // Quản lý kết nối mạng
-    private GameMessageProcessor messageProcessor;  // Xử lý tin nhắn game
-    private GamePanel gamePanel;                   // Bảng hiển thị game
-    private String playerId;                       // ID người chơi
+    private NetworkManager networkManager;          // Quan ly ket noi mang
+    private GameMessageProcessor messageProcessor;  // Xu ly tin nhan game
+    private GamePanel gamePanel;                   // Bang hien thi game
+    private String playerId;                       // ID nguoi choi
     
     public GameClient() {
         playerId = "Player_" + System.currentTimeMillis();
@@ -25,7 +22,7 @@ public class GameClient extends JFrame implements KeyListener {
     }
     
     /**
-     * Khởi tạo các thành phần chính
+     * Khoi tao cac thanh phan chinh
      */
     private void initializeComponents() {
         gamePanel = new GamePanel();
@@ -34,14 +31,14 @@ public class GameClient extends JFrame implements KeyListener {
     }
     
     /**
-     * Khởi tạo giao diện người dùng
+     * Khoi tao giao dien nguoi dung
      */
     private void initializeGUI() {
-        setTitle("Trò chơi Lửa và Nước - " + playerId);
+        setTitle("Tro choi Lua va Nuoc - " + playerId);
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setResizable(false);
         
-        // Xử lý khi đóng cửa sổ
+        // Xu ly khi dong cua so
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -55,39 +52,39 @@ public class GameClient extends JFrame implements KeyListener {
         setFocusable(true);
         
         pack();
-        setLocationRelativeTo(null);  // Căn giữa màn hình
+        setLocationRelativeTo(null);  // Can giua man hinh
         setVisible(true);
         
         showInstructions();
     }
     
     /**
-     * Hiển thị hướng dẫn chơi game
+     * Hien thi huong dan choi game
      */
     private void showInstructions() {
-        String instructions = "HƯỚNG DẪN CHƠI:\n\n" +
-                "• Sử dụng WASD hoặc phím mũi tên để di chuyển\n" +
-                "• Lửa (Đỏ) và Nước (Xanh) phải hợp tác\n" +
-                "• Cả hai phải đến cửa (Vàng) cùng lúc để qua màn\n" +
-                "• Tránh các bức tường (Nâu)\n" +
-                "• Có 3 màn chơi với độ khó tăng dần\n\n" +
-                "Nhấn OK để bắt đầu!";
+        String instructions = "HUONG DAN CHOI:\n\n" +
+                "• Su dung WASD hoac phim mui ten de di chuyen\n" +
+                "• Lua (Do) va Nuoc (Xanh) phai hop tac\n" +
+                "• Ca hai phai den cua (Vang) cung luc de qua man\n" +
+                "• Tranh cac buc tuong (Nau)\n" +
+                "• Co 3 man choi voi do kho tang dan\n\n" +
+                "Nhan OK de bat dau!";
         
         JOptionPane.showMessageDialog(this, instructions, 
-            "Trò chơi Lửa và Nước", JOptionPane.INFORMATION_MESSAGE);
+            "Tro choi Lua va Nuoc", JOptionPane.INFORMATION_MESSAGE);
     }
     
     /**
-     * Kết nối đến server
+     * Ket noi den server
      */
     private void connectToServer() {
         if (networkManager.connect()) {
-            gamePanel.setStatus("Đã kết nối! Đang tham gia game...");
-            networkManager.sendMessage("JOIN:" + playerId);
+            gamePanel.setStatus("Da ket noi! Dang tham gia game...");
+            networkManager.sendMessage(Constants.THAM_GIA + ":" + playerId);
         } else {
             JOptionPane.showMessageDialog(this, 
-                "Không thể kết nối đến server!\nVui lòng kiểm tra server đã chạy chưa.", 
-                "Lỗi kết nối", 
+                "Khong the ket noi den server!\nVui long kiem tra server da chay chua.", 
+                "Loi ket noi", 
                 JOptionPane.ERROR_MESSAGE);
             System.exit(1);
         }
@@ -95,7 +92,7 @@ public class GameClient extends JFrame implements KeyListener {
     
     @Override
     public void keyPressed(KeyEvent e) {
-        // Kiểm tra kết nối và loại người chơi trước khi di chuyển
+        // Kiem tra ket noi va loai nguoi choi truoc khi di chuyen
         if (!networkManager.isConnected() || messageProcessor.getPlayerType() == null) {
             return;
         }
@@ -104,31 +101,31 @@ public class GameClient extends JFrame implements KeyListener {
         if (!direction.isEmpty()) {
             boolean moved = gamePanel.movePlayer(direction);
             if (moved) {
-                // Gửi thông tin di chuyển đến server
+                // Gui thong tin di chuyen den server
                 Point playerPos = gamePanel.getPlayerPosition();
-                String moveMessage = "MOVE:" + playerPos.x + ":" + playerPos.y + ":" + direction;
+                String moveMessage = Constants.DI_CHUYEN + ":" + playerPos.x + ":" + playerPos.y + ":" + direction;
                 networkManager.sendMessage(moveMessage);
             }
         }
     }
     
     /**
-     * Chuyển đổi mã phím thành hướng di chuyển
+     * Chuyen doi ma phim thanh huong di chuyen
      */
     private String getDirectionFromKey(int keyCode) {
         switch (keyCode) {
             case KeyEvent.VK_UP:
             case KeyEvent.VK_W:
-                return "UP";
+                return  Constants.UP;
             case KeyEvent.VK_DOWN:
             case KeyEvent.VK_S:
-                return "DOWN";
+                return  Constants.DOWN;
             case KeyEvent.VK_LEFT:
             case KeyEvent.VK_A:
-                return "LEFT";
+                return  Constants.LEFT;
             case KeyEvent.VK_RIGHT:
             case KeyEvent.VK_D:
-                return "RIGHT";
+                return  Constants.RIGHT;
             default:
                 return "";
         }

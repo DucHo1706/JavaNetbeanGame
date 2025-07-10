@@ -5,19 +5,19 @@ import java.io.*;
 import java.net.*;
 
 public class NetworkManager {
-    private Socket socket;              // Kết nối socket
-    private PrintWriter out;            // Gửi dữ liệu
-    private BufferedReader in;          // Nhận dữ liệu
-    private boolean connected = false;  // Trạng thái kết nối
-    private MessageHandler messageHandler; // Bộ xử lý tin nhắn
+    private Socket socket;              // Ket noi socket
+    private PrintWriter out;            // Gui du lieu
+    private BufferedReader in;          // Nhan du lieu
+    private boolean connected = false;  // Trang thai ket noi
+    private MessageHandler messageHandler; // Bo xu ly tin nhan
     
     public NetworkManager(MessageHandler handler) {
         this.messageHandler = handler;
     }
     
     /**
-     * Tạo kết nối đến server
-     * @return true nếu kết nối thành công
+     * Tao ket noi den server
+     * @return true neu ket noi thanh cong
      */
     public boolean connect() {
         try {
@@ -26,18 +26,18 @@ public class NetworkManager {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             connected = true;
             
-            // Bắt đầu luồng lắng nghe tin nhắn từ server
+            // Bat dau luong lang nghe tin nhan tu server
             new Thread(this::listenToServer).start();
             return true;
             
         } catch (IOException e) {
-            System.err.println("Lỗi kết nối: " + e.getMessage());
+            System.err.println("Loi ket noi: " + e.getMessage());
             return false;
         }
     }
     
     /**
-     * Gửi tin nhắn đến server
+     * Gui tin nhan den server
      */
     public void sendMessage(String message) {
         if (out != null && connected) {
@@ -46,20 +46,20 @@ public class NetworkManager {
     }
     
     /**
-     * Ngắt kết nối với server
+     * Ngat ket noi voi server
      */
     public void disconnect() {
         connected = false;
-        sendMessage("DISCONNECT");
+        sendMessage(Constants.NGAT_KET_NOI); 
         try {
             if (socket != null) socket.close();
         } catch (IOException e) {
-            System.err.println("Lỗi đóng kết nối: " + e.getMessage());
+            System.err.println("Loi dong ket noi: " + e.getMessage());
         }
     }
     
     /**
-     * Lắng nghe tin nhắn từ server
+     * Lang nghe tin nhan tu server
      */
     private void listenToServer() {
         try {

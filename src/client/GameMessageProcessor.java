@@ -1,14 +1,15 @@
 package client;
 
 import javax.swing.*;
+import utils.Constants;
 
 /**
- * Xử lý các tin nhắn liên quan đến game từ server
+ * Xu ly cac tin nhan lien quan den game tu server
  */
 public class GameMessageProcessor implements MessageHandler {
-    private GamePanel gamePanel;        // Bảng hiển thị game
-    private JFrame parentFrame;         // Cửa sổ chính
-    private String playerType;          // Loại người chơi (FIRE/WATER)
+    private GamePanel gamePanel;        // Bang hien thi game
+    private JFrame parentFrame;         // Cua so chinh
+    private String playerType;          // Loai nguoi choi (FIRE/WATER)
     
     public GameMessageProcessor(GamePanel gamePanel, JFrame parentFrame) {
         this.gamePanel = gamePanel;
@@ -17,74 +18,105 @@ public class GameMessageProcessor implements MessageHandler {
     
     @Override
     public void handleMessage(String message) {
-        // Xử lý tin nhắn trên EDT thread để đảm bảo thread-safe với Swing
         SwingUtilities.invokeLater(() -> processMessage(message));
     }
     
     /**
-     * Phân tích và xử lý tin nhắn từ server
+     * Phan tich va xu ly tin nhan tu server
      */
     private void processMessage(String message) {
         String[] parts = message.split(":");
         String command = parts[0];
         
         switch (command) {
-            case "ROOM_JOINED":
-                handleRoomJoined(parts);    // Xử lý khi vào phòng thành công
+         case Constants.ROOM_DA_THAM_GIA:
+             handleRoomJoined(parts);
+             break;
+         case Constants.CHO_DOI_NGUOI_CHOI:
+             gamePanel.setStatus("Dang cho nguoi choi khac...");
+             break;
+         case Constants.THAM_GIA:
+             handleGameStart(parts);
+             break;
+         case "LEVEL_DATA": 
+             handleLevelData(parts);
+             break;
+         case Constants.DI_CHUYEN:
+             handlePlayerMove(parts);
+             break;
+         case Constants.CAP_NHAT_CAP_DO_TIEP_THEO:
+             handleNextLevel(parts);
+             break;
+         case Constants.GAME_HOAN_THANH:
+             handleGameComplete();
+             break;
+         case Constants.NGAT_KET_NOI:
+             handlePlayerDisconnected();
+             break;
+               case Constants.BAT_DAU_TRO_CHOI:
+            handleGameStart(parts);
+            break;
+        case Constants.DU_LIEU_CAP_DO:
+            handleLevelData(parts);
+            break;
+        case Constants.NGUOI_CHOI_DI_CHUYEN:
+            handlePlayerMove(parts);
+            break;
+        case Constants.NGUOI_CHOI_NGAT_KET_NOI:
+            handlePlayerDisconnected();
+            break;
+             case "THOI_GIAN_CON_LAI":
+                if (parts.length > 1) {
+                    try {
+                        int giayConLai = Integer.parseInt(parts[1]);
+                        gamePanel.updateTimeRemaining(giayConLai);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Dữ liệu thời gian không hợp lệ: " + parts[1]);
+                    }
+                }
                 break;
-            case "WAITING_FOR_PLAYER":
-                gamePanel.setStatus("Đang chờ người chơi khác...");
+
+            case "MAN_KET_THUC":
+                gamePanel.setStatus("Màn chơi đã kết thúc!");
+                JOptionPane.showMessageDialog(parentFrame,
+                        "Màn chơi đã kết thúc do hết giờ!",
+                        "Thông báo",
+                        JOptionPane.INFORMATION_MESSAGE);
                 break;
-            case "GAME_START":
-                handleGameStart(parts);     // Xử lý khi game bắt đầu
-                break;
-            case "LEVEL_DATA":
-                handleLevelData(parts);     // Xử lý dữ liệu màn chơi
-                break;
-            case "PLAYER_MOVE":
-                handlePlayerMove(parts);    // Xử lý di chuyển của người chơi khác
-                break;
-            case "NEXT_LEVEL":
-                handleNextLevel(parts);     // Xử lý chuyển màn
-                break;
-            case "GAME_COMPLETE":
-                handleGameComplete();       // Xử lý hoàn thành game
-                break;
-            case "PLAYER_DISCONNECTED":
-                handlePlayerDisconnected(); // Xử lý người chơi thoát
-                break;
-            default:
-                System.out.println("Lệnh không xác định: " + command);
+                
+
+         default:
+             System.out.println("Lenh khong xac dinh: " + command);
         }
     }
     
     /**
-     * Xử lý khi vào phòng thành công
+     * Xu ly khi vao phong thanh cong
      */
     private void handleRoomJoined(String[] parts) {
         if (parts.length > 2) {
             playerType = parts[2];
             gamePanel.setPlayerType(playerType);
-            String displayType = playerType.equals("FIRE") ? "Lửa" : "Nước";
-            gamePanel.setStatus("Đã vào phòng! Bạn là: " + displayType);
+            String displayType = playerType.equals("FIRE") ? "Lua" : "Nuoc";
+            gamePanel.setStatus("Da vao phong! Ban la: " + displayType);
         }
     }
     
     /**
-     * Xử lý khi game bắt đầu
+     * Xu ly khi game bat dau
      */
     private void handleGameStart(String[] parts) {
         if (parts.length > 2) {
-            gamePanel.setStatus("Game bắt đầu! Màn " + parts[2]);
+            gamePanel.setStatus("Game bat dau! Man " + parts[2]);
         }
     }
     
     /**
-     * Xử lý dữ liệu màn chơi từ server
+     * Xu ly du lieu man choi tu server
      */
     private void handleLevelData(String[] parts) {
         if (parts.length > 1) {
-            // Ghép lại toàn bộ dữ liệu màn chơi (có thể chứa dấu ":")
+            // Ghep lai toan bo du lieu man choi (co the chua dau ":")
             StringBuilder levelData = new StringBuilder();
             for (int i = 1; i < parts.length; i++) {
                 if (i > 1) levelData.append(":");
@@ -95,7 +127,7 @@ public class GameMessageProcessor implements MessageHandler {
     }
     
     /**
-     * Xử lý di chuyển của người chơi khác
+     * Xu ly di chuyen cua nguoi choi khac
      */
     private void handlePlayerMove(String[] parts) {
         if (parts.length > 4) {
@@ -107,45 +139,45 @@ public class GameMessageProcessor implements MessageHandler {
     }
     
     /**
-     * Xử lý chuyển sang màn tiếp theo
+     * Xu ly chuyen sang man tiep theo
      */
     private void handleNextLevel(String[] parts) {
         if (parts.length > 1) {
             int nextLevel = Integer.parseInt(parts[1]);
             gamePanel.setCurrentLevel(nextLevel);
-            gamePanel.setStatus("Chuyển sang Màn " + nextLevel + "!");
+            gamePanel.setStatus("Chuyen sang Man " + nextLevel + "!");
         }
     }
     
     /**
-     * Xử lý khi hoàn thành toàn bộ game
+     * Xu ly khi hoan thanh toan bo game
      */
     private void handleGameComplete() {
-        gamePanel.setStatus("Chúc mừng! Hoàn thành tất cả màn chơi!");
+        gamePanel.setStatus("Chuc mung! Hoan thanh tat ca man choi!");
         JOptionPane.showMessageDialog(parentFrame, 
-            "Chúc mừng!\nBạn đã hoàn thành tất cả màn chơi!", 
-            "Chiến thắng!", 
+            "Chuc mung!\nBan da hoan thanh tat ca man choi!", 
+            "Chien thang!", 
             JOptionPane.INFORMATION_MESSAGE);
     }
     
     /**
-     * Xử lý khi người chơi khác thoát game
+     * Xu ly khi nguoi choi khac thoat game
      */
     private void handlePlayerDisconnected() {
-        gamePanel.setStatus("Người chơi khác đã thoát");
+        gamePanel.setStatus("Nguoi choi khac da thoat");
         JOptionPane.showMessageDialog(parentFrame, 
-            "Người chơi khác đã thoát khỏi game!", 
-            "Thông báo", 
+            "Nguoi choi khac da thoat khoi game!", 
+            "Thong bao", 
             JOptionPane.WARNING_MESSAGE);
     }
     
     @Override
     public void handleConnectionLost() {
         SwingUtilities.invokeLater(() -> {
-            gamePanel.setStatus("Mất kết nối với server");
+            gamePanel.setStatus("Mat ket noi voi server");
             JOptionPane.showMessageDialog(parentFrame, 
-                "Mất kết nối với server!", 
-                "Lỗi", 
+                "Mat ket noi voi server!", 
+                "Loi", 
                 JOptionPane.ERROR_MESSAGE);
         });
     }
