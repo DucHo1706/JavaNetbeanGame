@@ -137,7 +137,4 @@ public class GameClient extends JFrame implements KeyListener {
     @Override
     public void keyReleased(KeyEvent e) {}
     
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new GameClient());
-    }
 }

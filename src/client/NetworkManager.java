@@ -9,9 +9,9 @@ public class NetworkManager {
     private PrintWriter out;            // Gui du lieu
     private BufferedReader in;          // Nhan du lieu
     private boolean connected = false;  // Trang thai ket noi
-    private MessageHandler messageHandler; // Bo xu ly tin nhan
+    private IMessageHandler messageHandler; // Bo xu ly tin nhan
     
-    public NetworkManager(MessageHandler handler) {
+    public NetworkManager(IMessageHandler handler) {
         this.messageHandler = handler;
     }
     

@@ -6,7 +6,7 @@ import utils.Constants;
 /**
  * Xu ly cac tin nhan lien quan den game tu server
  */
-public class GameMessageProcessor implements MessageHandler {
+public class GameMessageProcessor implements IMessageHandler {
     private GamePanel gamePanel;        // Bang hien thi game
     private JFrame parentFrame;         // Cua so chinh
     private String playerType;          // Loai nguoi choi (FIRE/WATER)
@@ -83,8 +83,13 @@ public class GameMessageProcessor implements MessageHandler {
                         "Thông báo",
                         JOptionPane.INFORMATION_MESSAGE);
                 break;
-                
+        
+        // Xử lý logic ở game lobby
+        // Khi người dùng ấn bắt đầu thì sẽ cho join phòng
 
+        case Constants.NUT_BAT_DAU:
+                handleRoomJoined(parts);
+                break;
          default:
              System.out.println("Lenh khong xac dinh: " + command);
         }
@@ -94,6 +99,8 @@ public class GameMessageProcessor implements MessageHandler {
      * Xu ly khi vao phong thanh cong
      */
     private void handleRoomJoined(String[] parts) {
+        String messageString = "Đang đợi người chơi khác kết nối";
+        gamePanel.setStatus(messageString);
         if (parts.length > 2) {
             playerType = parts[2];
             gamePanel.setPlayerType(playerType);

@@ -38,5 +38,7 @@ public class Constants {
     public static final String NGUOI_CHOI_DI_CHUYEN = "NGUOI_CHOI_DI_CHUYEN";
     public static final String NGUOI_CHOI_NGAT_KET_NOI = "NGUOI_CHOI_NGAT_KET_NOI";
 
+    public static final String NUT_BAT_DAU = "NUT_BAT_DAU";
+
     
 }

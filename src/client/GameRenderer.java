@@ -12,12 +12,7 @@ import java.util.Set;
  * Class chuyên vẽ các thành phần của game
  */
 public class GameRenderer {
-    private final Color BACKGROUND_COLOR = new Color(34, 34, 34);
     private final Color GRID_COLOR = new Color(64, 64, 64);
-    private final Color FIRE_COLOR = Color.RED;
-    private final Color WATER_COLOR = Color.CYAN;
-    private final Color WALL_COLOR = new Color(139, 69, 19);
-    private final Color DOOR_COLOR = Color.YELLOW;
     private final Color STATUS_COLOR = Color.WHITE;
     
     private int animationFrame = 0;
