@@ -40,7 +40,8 @@ public class lobby extends JFrame {
         leaderboardButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                JOptionPane.showMessageDialog(lobby.this , "Đang hiển thị Bảng Xếp Hạng...");
+                  LeaderboardFrame leaderboardFrame = new LeaderboardFrame();
+                leaderboardFrame.setVisible(true);
             }
         });
         panel.add(leaderboardButton);

@@ -14,6 +14,8 @@ public class GameServer {
     private Map<String, GameRoom> danhSachPhongChoi;
     private Map<Socket, String> danhSachSocketNguoiChoi;
     private boolean dangChay;
+// Lưu tổng thời gian chơi (giây) cho từng người chơi (key là playerId)
+private Map<String, Integer> tongThoiGianChoi = new ConcurrentHashMap<>();
 
     public GameServer() {
         danhSachPhongChoi = new ConcurrentHashMap<>();
@@ -83,6 +85,44 @@ public class GameServer {
                     case Constants.NGAT_KET_NOI:
                         xuLyNgatKetNoi(clientSocket);
                         return;
+                    case "SAN_SANG":
+                     String maNguoiChoi = danhSachSocketNguoiChoi.get(clientSocket);
+                     if (maNguoiChoi != null) {
+                         // Tìm phòng hiện tại của người chơi
+                         for (GameRoom phong : danhSachPhongChoi.values()) {
+                             if (phong.coNguoiChoi(maNguoiChoi)) {
+                                 phong.nguoiChoiSanSang(maNguoiChoi);
+                                 break;
+                             }
+                         }
+                     }
+                     break;
+
+                case "CAP_NHAT_THOI_GIAN":
+                    if (phan.length == 2) {
+                         maNguoiChoi = danhSachSocketNguoiChoi.get(clientSocket);
+                        if (maNguoiChoi != null) {
+                            try {
+                                int thoiGianMoi = Integer.parseInt(phan[1]);
+                                capNhatThoiGianChoi(maNguoiChoi, thoiGianMoi);
+                            } catch (NumberFormatException e) {
+                                System.err.println("Lỗi định dạng thời gian chơi từ client: " + phan[1]);
+                            }
+                        }
+                    }
+                    break;
+                    case "LAY_BANG_XEP_HANG":
+                        List<Map.Entry<String, Integer>> bangXepHang = new ArrayList<>(tongThoiGianChoi.entrySet());
+                        // Sắp xếp tăng dần theo thời gian chơi (ai chơi ít thời gian hơn thì đứng trên)
+                        bangXepHang.sort(Comparator.comparingInt(Map.Entry::getValue));
+                        StringBuilder sb = new StringBuilder("BANG_XEP_HANG:");
+                        for (Map.Entry<String, Integer> entry : bangXepHang) {
+                            sb.append(entry.getKey()).append(",").append(entry.getValue()).append(";");
+                        }
+                         out = new PrintWriter(clientSocket.getOutputStream(), true);
+                        out.println(sb.toString());
+                        break;
+
                    
                     default:
                         out.println("LOI: Lệnh không xác định: " + lenh);
@@ -96,6 +136,11 @@ public class GameServer {
         }
     }
 
+public synchronized void capNhatThoiGianChoi(String maNguoiChoi, int thoiGianMoi) {
+    int thoiGianCu = tongThoiGianChoi.getOrDefault(maNguoiChoi, 0);
+    tongThoiGianChoi.put(maNguoiChoi, thoiGianCu + thoiGianMoi);
+    System.out.println("Cập nhật tổng thời gian chơi của " + maNguoiChoi + ": " + tongThoiGianChoi.get(maNguoiChoi) + " giây");
+}
 
     private void thamGiaTroChoi(Socket socket, String maNguoiChoi, PrintWriter out) {
         danhSachSocketNguoiChoi.put(socket, maNguoiChoi);

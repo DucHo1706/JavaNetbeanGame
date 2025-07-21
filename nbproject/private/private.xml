@@ -3,10 +3,9 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/D:/GitCloneJavaNetbean/JavaNetbeanGame/src/server/GameServer.java</file>
             <file>file:/D:/GitCloneJavaNetbean/JavaNetbeanGame/src/server/GameRoom.java</file>
-            <file>file:/D:/GitCloneJavaNetbean/JavaNetbeanGame/src/client/GameRenderer.java</file>
-            <file>file:/D:/GitCloneJavaNetbean/JavaNetbeanGame/src/client/GameMessageProcessor.java</file>
+            <file>file:/D:/GitCloneJavaNetbean/JavaNetbeanGame/src/server/GameServer.java</file>
+            <file>file:/D:/GitCloneJavaNetbean/JavaNetbeanGame/src/GameLobby/LeaderboardUtils.java</file>
         </group>
     </open-files>
 </project-private>

@@ -20,8 +20,10 @@ public class GameRoom {
     private boolean troChoiDaBatDau;
     private Set<String> nguoiChoiTaiCua;
     private Level duLieuCapDoHienTai;
-    
-    
+    private Set<String> nguoiChoiSanSang;
+
+    private Map<String, Integer> bangXepHang = new HashMap<>();
+
     private int thoiGianConLai; // tính bằng giây
     private Timer timer;
     private boolean manDaKetThuc = false;
@@ -35,6 +37,18 @@ public class GameRoom {
         this.capDoHienTai = 1;
         this.troChoiDaBatDau = false;
         this.nguoiChoiTaiCua = new HashSet<>();
+        this.nguoiChoiSanSang = new HashSet<>();
+    }
+    private void luuBangXepHangRaFile() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("leaderboard.txt"))) {
+            for (Map.Entry<String, Integer> entry : bangXepHang.entrySet()) {
+                writer.write(entry.getKey() + ":" + entry.getValue());
+                writer.newLine();
+            }
+            System.out.println("Đã lưu bảng xếp hạng vào file leaderboard.txt");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public PlayerType themNguoiChoi(Socket socket, String maNguoiChoi) {
@@ -110,20 +124,42 @@ public class GameRoom {
         }, 0, 1000);
     }
    // Xử lý khi màn chơi kết thúc do hết giờ
-    private void xuLyKetThucMan() {
-        troChoiDaBatDau = false;
-        phatTinNhanChoTatCa("MAN_KET_THUC");
-        System.out.println("Màn chơi trong phòng " + maPhong + " đã kết thúc do hết giờ.");
-            duLieuCapDoHienTai = taoCapDo(capDoHienTai);  // Tải lại dữ liệu cấp độ hiện tại
-          datLaiViTriNguoiChoi();            // Đặt lại vị trí người chơi theo cấp độ hiện tại
+  private void xuLyKetThucMan() {
+    troChoiDaBatDau = false;
+    phatTinNhanChoTatCa("MAN_KET_THUC");
+    System.out.println("Màn chơi trong phòng " + maPhong + " đã kết thúc do hết giờ.");
 
-          // Bật lại trò chơi và bắt đầu đếm thời gian mới
-          troChoiDaBatDau = true;
-          batDauDemThoiGian(60);             // Khởi động lại đồng hồ đếm ngược 60 giây (hoặc thời gian bạn muốn)
+    nguoiChoiSanSang.clear(); // reset trạng thái
 
-          // Gửi lại dữ liệu cấp độ cho client
-          guiDuLieuCapDo();
+    // Ví dụ cập nhật điểm cho mỗi người chơi (ở đây tạm lấy thoiGianConLai làm điểm)
+    for (String nguoiChoi : danhSachNguoiChoi.keySet()) {
+        int diem = thoiGianConLai; // hoặc tính điểm khác tùy logic game
+        bangXepHang.put(nguoiChoi, diem);
     }
+
+    // Lưu bảng xếp hạng ra file
+    luuBangXepHangRaFile();
+
+    // Gửi yêu cầu người chơi bấm nút sẵn sàng
+    phatTinNhanChoTatCa("YEU_CAU_SAN_SANG");
+}
+
+ public void nguoiChoiSanSang(String maNguoiChoi) {
+    nguoiChoiSanSang.add(maNguoiChoi); 
+
+    if (nguoiChoiSanSang.size() == danhSachNguoiChoi.size()) {
+        troChoiDaBatDau = true;
+        nguoiChoiSanSang.clear();  // reset trạng thái
+        phatTinNhanChoTatCa("BAT_DAU_TRO_CHOI:CAP_DO:" + capDoHienTai);
+        batDauDemThoiGian(60);
+        guiDuLieuCapDo();
+        datLaiViTriNguoiChoi();
+        System.out.println("Phòng " + maPhong + " bắt đầu lại màn chơi sau khi cả 2 người chơi sẵn sàng.");
+    }
+
+}
+
+
 
 
 
@@ -152,21 +188,30 @@ public class GameRoom {
     }
 
     public void chuyenSangCapDoTiepTheo() {
-        nguoiChoiTaiCua.clear();
-        capDoHienTai++;
+      nguoiChoiTaiCua.clear();
+      capDoHienTai++;
 
-        if (capDoHienTai <= Constants.TOTAL_LEVELS) {
-            duLieuCapDoHienTai = taoCapDo(capDoHienTai);
-            System.out.println("Phòng " + maPhong + " chuyển sang cấp độ " + capDoHienTai);
-            phatTinNhanChoTatCa(Constants.CAP_NHAT_CAP_DO_TIEP_THEO + ":" + capDoHienTai);
-            guiDuLieuCapDo();
-            datLaiViTriNguoiChoi();
-        } else {
-            System.out.println("Phòng " + maPhong + " đã hoàn thành tất cả cấp độ!");
-            phatTinNhanChoTatCa(Constants.GAME_HOAN_THANH);
-            troChoiDaBatDau = false;
-        }
-    }
+      if (capDoHienTai <= Constants.TOTAL_LEVELS) {
+          duLieuCapDoHienTai = taoCapDo(capDoHienTai);
+          System.out.println("Phòng " + maPhong + " chuyển sang cấp độ " + capDoHienTai);
+          phatTinNhanChoTatCa(Constants.CAP_NHAT_CAP_DO_TIEP_THEO + ":" + capDoHienTai);
+          guiDuLieuCapDo();
+          datLaiViTriNguoiChoi();
+          batDauDemThoiGian(60);
+      } else {
+          System.out.println("Phòng " + maPhong + " đã hoàn thành tất cả cấp độ!");
+          phatTinNhanChoTatCa(Constants.GAME_HOAN_THANH);
+          troChoiDaBatDau = false;
+
+          // Cập nhật điểm khi hoàn thành tất cả cấp độ (ví dụ điểm cao nhất)
+          for (String nguoiChoi : danhSachNguoiChoi.keySet()) {
+              int diem = capDoHienTai * 100; // ví dụ điểm thưởng lớn hơn
+              bangXepHang.put(nguoiChoi, diem);
+          }
+          luuBangXepHangRaFile();
+      }
+  }
+
 
     private void guiDuLieuCapDo() {
         String duLieu = taoChuoiDuLieuCapDo(capDoHienTai);

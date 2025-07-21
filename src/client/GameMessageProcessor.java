@@ -55,6 +55,7 @@ public class GameMessageProcessor implements IMessageHandler {
              break;
                case Constants.BAT_DAU_TRO_CHOI:
             handleGameStart(parts);
+             gamePanel.batDauVongMoi();
             break;
         case Constants.DU_LIEU_CAP_DO:
             handleLevelData(parts);
@@ -78,11 +79,18 @@ public class GameMessageProcessor implements IMessageHandler {
 
             case "MAN_KET_THUC":
                 gamePanel.setStatus("Màn chơi đã kết thúc!");
-                JOptionPane.showMessageDialog(parentFrame,
-                        "Màn chơi đã kết thúc do hết giờ!",
-                        "Thông báo",
-                        JOptionPane.INFORMATION_MESSAGE);
                 break;
+            case "YEU_CAU_SAN_SANG":
+                gamePanel.showReadyButton(true);
+                break;
+                        case "NGUOI_CHOI_SAN_SANG":
+            if (parts.length > 1) {
+                String playerId = parts[1];
+                gamePanel.updateReadyStatus(playerId);
+            }
+            break;
+
+
         
         // Xử lý logic ở game lobby
         // Khi người dùng ấn bắt đầu thì sẽ cho join phòng
