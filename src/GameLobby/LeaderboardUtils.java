@@ -7,7 +7,7 @@ import java.util.Scanner;
 
 public class LeaderboardUtils {
 
-    private static final String LEADERBOARD_FILE = "leaderboard.txt";
+    private static final String LEADERBOARD_FILE = "data/leaderboard.txt";
 
     // Ghi bảng xếp hạng vào file
     public static void saveLeaderboardToFile(Map<String, Integer> rankings) {

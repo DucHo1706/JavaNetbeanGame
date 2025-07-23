@@ -77,4 +77,12 @@ public class NetworkManager {
     public boolean isConnected() { 
         return connected; 
     }
+      // Thêm getter để lấy BufferedReader và PrintWriter
+    public BufferedReader getBufferedReader() {
+        return in;
+    }
+
+    public PrintWriter getPrintWriter() {
+        return out;
+    }
 }

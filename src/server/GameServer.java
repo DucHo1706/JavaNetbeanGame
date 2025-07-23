@@ -1,5 +1,7 @@
 package server;
 
+import GameLobby.LeaderboardUtils;
+import client.NetworkManager;
 import utils.Constants;
 import utils.PlayerType;
 
@@ -14,31 +16,40 @@ public class GameServer {
     private Map<String, GameRoom> danhSachPhongChoi;
     private Map<Socket, String> danhSachSocketNguoiChoi;
     private boolean dangChay;
-// Lưu tổng thời gian chơi (giây) cho từng người chơi (key là playerId)
-private Map<String, Integer> tongThoiGianChoi = new ConcurrentHashMap<>();
+    private NetworkManager networkManager;
+
+    private Map<String, Integer> tongThoiGianChoi = new ConcurrentHashMap<>();
 
     public GameServer() {
         danhSachPhongChoi = new ConcurrentHashMap<>();
         danhSachSocketNguoiChoi = new ConcurrentHashMap<>();
         dangChay = false;
-    }
-
-    public void batDau() throws IOException {
-        serverSocket = new ServerSocket(Constants.SERVER_PORT);
-        dangChay = true;
-        while (dangChay) {
-            try {
-                Socket clientSocket = serverSocket.accept();
-                new Thread(() -> xuLyClient(clientSocket)).start();
-            } catch (IOException e) {
-                if (dangChay) {
-                    System.err.println("Lỗi khi chấp nhận kết nối client: " + e.getMessage());
-                }
-            }
+         // Load bảng xếp hạng từ file khi khởi động server
+        Map<String, Integer> loadedRankings = LeaderboardUtils.loadLeaderboardFromFile();
+        if (loadedRankings != null) {
+            tongThoiGianChoi.putAll(loadedRankings);
+            System.out.println("Đã tải bảng xếp hạng từ file khi khởi động server.");
         }
     }
 
-    private void xuLyClient(Socket clientSocket) {
+    public Map<String, Integer> getTongThoiGianChoi() {
+        return tongThoiGianChoi;
+    }
+
+    public synchronized void luuBangXepHangRaFile() {
+        LeaderboardUtils.saveLeaderboardToFile(tongThoiGianChoi);
+    }
+
+    public synchronized void capNhatThoiGianChoi(String maNguoiChoi, int thoiGianVongMoi) {
+        int thoiGianCu = tongThoiGianChoi.getOrDefault(maNguoiChoi, 0);
+        tongThoiGianChoi.put(maNguoiChoi, thoiGianCu + thoiGianVongMoi);
+        System.out.println("Cập nhật tổng thời gian chơi của " + maNguoiChoi + ": " + tongThoiGianChoi.get(maNguoiChoi) + " giây");
+    }
+    private String taoMaPhongMoi() {
+        return "ROOM_" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+       private void xuLyClient(Socket clientSocket) {
         try {
             BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
@@ -55,11 +66,16 @@ private Map<String, Integer> tongThoiGianChoi = new ConcurrentHashMap<>();
 
                 switch (lenh) {
                     case Constants.THAM_GIA:
-                        if (phan.length > 1) {
+                        if (phan.length > 2) {
                             String maNguoiChoi = phan[1];
-                            thamGiaTroChoi(clientSocket, maNguoiChoi, out);
+                            String maPhong = phan[2];
+                            xuLyVaoPhong(clientSocket, maNguoiChoi, maPhong, out);
+                        } else if (phan.length == 2) {
+                            // Trường hợp client chưa có mã phòng, tạo phòng mới
+                            String maNguoiChoi = phan[1];
+                            xuLyVaoPhong(clientSocket, maNguoiChoi, "", out);
                         } else {
-                            out.println("LOI: Lệnh THAM_GIA cần playerId");
+                            out.println("LOI: Lệnh THAM_GIA cần playerId và optional roomId");
                         }
                         break;
 
@@ -85,45 +101,52 @@ private Map<String, Integer> tongThoiGianChoi = new ConcurrentHashMap<>();
                     case Constants.NGAT_KET_NOI:
                         xuLyNgatKetNoi(clientSocket);
                         return;
-                    case "SAN_SANG":
-                     String maNguoiChoi = danhSachSocketNguoiChoi.get(clientSocket);
-                     if (maNguoiChoi != null) {
-                         // Tìm phòng hiện tại của người chơi
-                         for (GameRoom phong : danhSachPhongChoi.values()) {
-                             if (phong.coNguoiChoi(maNguoiChoi)) {
-                                 phong.nguoiChoiSanSang(maNguoiChoi);
-                                 break;
-                             }
-                         }
-                     }
-                     break;
 
-                case "CAP_NHAT_THOI_GIAN":
-                    if (phan.length == 2) {
-                         maNguoiChoi = danhSachSocketNguoiChoi.get(clientSocket);
+                    case "SAN_SANG":
+                        String maNguoiChoi = danhSachSocketNguoiChoi.get(clientSocket);
                         if (maNguoiChoi != null) {
-                            try {
-                                int thoiGianMoi = Integer.parseInt(phan[1]);
-                                capNhatThoiGianChoi(maNguoiChoi, thoiGianMoi);
-                            } catch (NumberFormatException e) {
-                                System.err.println("Lỗi định dạng thời gian chơi từ client: " + phan[1]);
+                            for (GameRoom phong : danhSachPhongChoi.values()) {
+                                if (phong.coNguoiChoi(maNguoiChoi)) {
+                                    phong.nguoiChoiSanSang(maNguoiChoi);
+                                    break;
+                                }
                             }
                         }
-                    }
-                    break;
+                        break;
+
+                    case "CAP_NHAT_THOI_GIAN":
+                        if (phan.length == 2) {
+                            maNguoiChoi = danhSachSocketNguoiChoi.get(clientSocket);
+                            if (maNguoiChoi != null) {
+                                try {
+                                    int thoiGianMoi = Integer.parseInt(phan[1]);
+                                    capNhatThoiGianChoi(maNguoiChoi, thoiGianMoi);
+                                } catch (NumberFormatException e) {
+                                    System.err.println("Lỗi định dạng thời gian chơi từ client: " + phan[1]);
+                                }
+                            }
+                        }
+                        break;
+
                     case "LAY_BANG_XEP_HANG":
                         List<Map.Entry<String, Integer>> bangXepHang = new ArrayList<>(tongThoiGianChoi.entrySet());
-                        // Sắp xếp tăng dần theo thời gian chơi (ai chơi ít thời gian hơn thì đứng trên)
                         bangXepHang.sort(Comparator.comparingInt(Map.Entry::getValue));
                         StringBuilder sb = new StringBuilder("BANG_XEP_HANG:");
                         for (Map.Entry<String, Integer> entry : bangXepHang) {
                             sb.append(entry.getKey()).append(",").append(entry.getValue()).append(";");
                         }
-                         out = new PrintWriter(clientSocket.getOutputStream(), true);
                         out.println(sb.toString());
                         break;
 
-                   
+                    case Constants.RROI_PHONG:
+                        if (phan.length > 1) {
+                            maNguoiChoi = phan[1];
+                            xuLyNguoiChoiRoiPhong(clientSocket, maNguoiChoi);
+                        } else {
+                            out.println("LOI: Lệnh RROI_PHONG cần playerId");
+                        }
+                        break;
+
                     default:
                         out.println("LOI: Lệnh không xác định: " + lenh);
                         break;
@@ -135,41 +158,89 @@ private Map<String, Integer> tongThoiGianChoi = new ConcurrentHashMap<>();
             xuLyNgatKetNoi(clientSocket);
         }
     }
-
-public synchronized void capNhatThoiGianChoi(String maNguoiChoi, int thoiGianMoi) {
-    int thoiGianCu = tongThoiGianChoi.getOrDefault(maNguoiChoi, 0);
-    tongThoiGianChoi.put(maNguoiChoi, thoiGianCu + thoiGianMoi);
-    System.out.println("Cập nhật tổng thời gian chơi của " + maNguoiChoi + ": " + tongThoiGianChoi.get(maNguoiChoi) + " giây");
-}
-
-    private void thamGiaTroChoi(Socket socket, String maNguoiChoi, PrintWriter out) {
-        danhSachSocketNguoiChoi.put(socket, maNguoiChoi);
-
-        GameRoom phongTrong = null;
-        for (GameRoom phong : danhSachPhongChoi.values()) {
-            if (phong.laySoNguoiChoi() < Constants.MAX_PLAYERS_PER_ROOM) {
-                phongTrong = phong;
-                break;
+   private void xuLyVaoPhong(Socket socket, String maNguoiChoi, String maPhong, PrintWriter out) {
+    System.out.println("[GameServer] Người chơi " + maNguoiChoi + " yêu cầu vào phòng: '" + maPhong + "'");
+    try {
+        if (maPhong != null && !maPhong.isEmpty()) {
+            // Kiểm tra phòng có tồn tại và còn đủ người chơi không
+            GameRoom phongCu = danhSachPhongChoi.get(maPhong);
+            if (phongCu == null || phongCu.laySoNguoiChoi() >= Constants.MAX_PLAYERS_PER_ROOM) {
+                // Phòng không tồn tại hoặc đã đầy => tạo phòng mới
+                maPhong = null;
             }
         }
 
-        if (phongTrong == null) {
-            phongTrong = new GameRoom(UUID.randomUUID().toString());
-            danhSachPhongChoi.put(phongTrong.layMaPhong(), phongTrong);
-            System.out.println("Tạo phòng mới: " + phongTrong.layMaPhong());
+        if (maPhong == null || maPhong.isEmpty()) {
+            // Tìm phòng chưa đủ người chơi để join
+            for (Map.Entry<String, GameRoom> entry : danhSachPhongChoi.entrySet()) {
+                if (entry.getValue().laySoNguoiChoi() < Constants.MAX_PLAYERS_PER_ROOM) {
+                    maPhong = entry.getKey();
+                    break;
+                }
+            }
+            // Nếu không tìm thấy phòng trống hoặc maPhong vẫn rỗng thì tạo phòng mới
+            if (maPhong == null || maPhong.isEmpty()) {
+                maPhong = taoMaPhongMoi();
+                System.out.println("Tạo phòng mới: " + maPhong);
+            }
         }
 
-        PlayerType loai = phongTrong.themNguoiChoi(socket, maNguoiChoi);
-        out.println(Constants.ROOM_DA_THAM_GIA + ":" + phongTrong.layMaPhong() + ":" + loai);
+        GameRoom phong = danhSachPhongChoi.get(maPhong);
 
-        if (phongTrong.laySoNguoiChoi() == Constants.MAX_PLAYERS_PER_ROOM) {
-            System.out.println("Phòng " + phongTrong.layMaPhong() + " đầy người, bắt đầu chơi...");
-            phongTrong.batDauTroChoi();
+        if (phong == null) {
+            phong = new GameRoom(maPhong);
+            danhSachPhongChoi.put(maPhong, phong);
+            System.out.println("Tạo phòng mới: " + maPhong);
+        }
+
+        if (phong.laySoNguoiChoi() < Constants.MAX_PLAYERS_PER_ROOM) {
+            PlayerType loai = phong.themNguoiChoi(socket, maNguoiChoi);
+            danhSachSocketNguoiChoi.put(socket, maNguoiChoi);
+
+            System.out.println("[GameServer] Gửi ROOM_DA_THAM_GIA với mã phòng: '" + maPhong + "'");
+            out.println(Constants.ROOM_DA_THAM_GIA + ":" + maPhong + ":" + loai.name());
+            System.out.println("Người chơi " + maNguoiChoi + " vào phòng " + maPhong + " với vai trò " + loai);
+
+            if (phong.laySoNguoiChoi() == Constants.MAX_PLAYERS_PER_ROOM) {
+                System.out.println("Phòng " + maPhong + " đầy người, bắt đầu chơi...");
+                phong.batDauTroChoi();
+            } else {
+                out.println(Constants.CHO_DOI_NGUOI_CHOI);
+                System.out.println("Người chơi " + maNguoiChoi + " đang chờ đối thủ...");
+            }
         } else {
-            out.println(Constants.CHO_DOI_NGUOI_CHOI);
-            System.out.println("Người chơi " + maNguoiChoi + " đang chờ đối thủ...");
+            out.println("PHONG_DAY");
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+
+
+ private void xuLyNguoiChoiRoiPhong(Socket socket, String maNguoiChoi) {
+    System.out.println("Người chơi " + maNguoiChoi + " rời phòng.");
+    for (GameRoom phong : danhSachPhongChoi.values()) {
+        if (phong.coNguoiChoi(maNguoiChoi)) {
+            // Xóa người chơi khỏi phòng
+            phong.xoaNguoiChoi(maNguoiChoi);
+
+            // Thông báo người chơi đã rời
+            phong.phatTinNhanChoTatCa(Constants.NGUOI_CHOI_NGAT_KET_NOI + ":" + maNguoiChoi);
+
+            // Kết thúc phòng ngay lập tức, đá người chơi còn lại về lobby
+            phong.phatTinNhanChoTatCa("PHONG_KHONG_HOAT_DONG");
+
+            // Xóa phòng khỏi danh sách server
+            danhSachPhongChoi.remove(phong.layMaPhong());
+            System.out.println("Phòng " + phong.layMaPhong() + " đã kết thúc và bị xóa do người chơi rời.");
+
+            break;
         }
     }
+   
+}
+
+   
 
     private void xuLyDiChuyen(Socket socket, int x, int y, String huong) {
         String maNguoiChoi = danhSachSocketNguoiChoi.get(socket);
@@ -279,6 +350,21 @@ public synchronized void capNhatThoiGianChoi(String maNguoiChoi, int thoiGianMoi
         }
     }
 
+    public void batDau() throws IOException {
+        serverSocket = new ServerSocket(Constants.SERVER_PORT);
+        dangChay = true;
+        while (dangChay) {
+            try {
+                Socket clientSocket = serverSocket.accept();
+                new Thread(() -> xuLyClient(clientSocket)).start();
+            } catch (IOException e) {
+                if (dangChay) {
+                    System.err.println("Lỗi khi chấp nhận kết nối client: " + e.getMessage());
+                }
+            }
+        }
+    }
+
     public void dungServer() {
         dangChay = false;
         try {
@@ -291,7 +377,7 @@ public synchronized void capNhatThoiGianChoi(String maNguoiChoi, int thoiGianMoi
     }
 
     public static void main(String[] args) {
-        GameServer server = new GameServer();
+         GameServer server = new GameServer();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("\nĐang tắt server...");
@@ -305,4 +391,6 @@ public synchronized void capNhatThoiGianChoi(String maNguoiChoi, int thoiGianMoi
             e.printStackTrace();
         }
     }
-}
+
+
+}   

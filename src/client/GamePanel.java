@@ -75,14 +75,15 @@ public class GamePanel extends JPanel {
 
     // 4. Xử lý khi hết thời gian vòng chơi
     private void xuLyHetThoiGianVong() {
-        JOptionPane.showMessageDialog(this, "Hết thời gian vòng chơi! Tổng thời gian chơi: " + tongThoiGianChoi + " giây");
-        readyButton.setEnabled(true);
-          if (networkManager != null) {
-        // Gửi tổng thời gian chơi lên server theo định dạng
-        networkManager.sendMessage("CAP_NHAT_THOI_GIAN:" + tongThoiGianChoi);
-        System.out.println("Đa gui thoi gian den server: " + tongThoiGianChoi);
+      JOptionPane.showMessageDialog(this, "Hết thời gian vòng chơi! Thời gian vòng: " + thoiGianVongHienTai + " giây");
+    readyButton.setEnabled(true);
+    if (networkManager != null) {
+        // Gửi thời gian vòng chơi (không phải tổng thời gian) đến server
+        networkManager.sendMessage("CAP_NHAT_THOI_GIAN:" + thoiGianVongHienTai);
+        System.out.println("Đã gửi thời gian vòng chơi đến server: " + thoiGianVongHienTai);
     }
     }
+    
     // 3. Hàm cập nhật hiển thị thời gian (bạn có thể chỉnh sửa theo UI hiện tại)
 private void capNhatHienThiThoiGian() {
     // Giả sử bạn có label hiển thị thời gian, ví dụ labelThoiGian
@@ -90,7 +91,50 @@ private void capNhatHienThiThoiGian() {
         labelThoiGian.setText("Tong thoi gian choi: " + tongThoiGianChoi + " giây");
     }
 }
+ public void resetGameState() {
+    // Xóa dữ liệu bản đồ
+    walls.clear();
+
+    // Reset vị trí nhân vật
+    firePlayer = new Point(1, 1);
+    waterPlayer = new Point(1, 1);
+    myPlayer = new Point(1, 1);
+    otherPlayer = null;
+
+    // Reset cửa
+    door = null;
+
+    // Reset level hiện tại
+    currentLevelNumber = 1;
+    currentLevelData = null;
+
+    // Reset trạng thái
+    status = "Chưa vào phòng";
+    playerType = null;
+
+    // Reset thời gian chơi
+    tongThoiGianChoi = 0;
+    thoiGianVongHienTai = 0;
+    if (timerThoiGianChoi != null && timerThoiGianChoi.isRunning()) {
+        timerThoiGianChoi.stop();
+    }
+    if (labelThoiGian != null) {
+        labelThoiGian.setText("Tổng thời gian chơi: 0 giây");
+    }
+
+    // Reset trạng thái sẵn sàng
+    nguoiChoiDaSanSang.clear();
     
+
+    // Tắt animation chiến thắng nếu đang bật
+    showWinAnimation = false;
+
+    // Yêu cầu vẽ lại
+    repaint();
+
+    System.out.println("Đã reset trạng thái gamePanel về mặc định");
+}
+
     private NetworkManager networkManager;
 
     public void setNetworkManager(NetworkManager nm) {
@@ -472,4 +516,5 @@ private void capNhatHienThiThoiGian() {
     public Point getPlayerPosition() {
         return myPlayer != null ? new Point(myPlayer) : null;
     }
+    
 }

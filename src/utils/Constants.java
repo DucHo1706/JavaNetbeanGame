@@ -17,6 +17,7 @@ public class Constants {
     public static final String DI_CHUYEN = "DI_CHUYEN";
     public static final String HOAN_THANH_CAP_DO = "HOAN_THANH_CAP_DO";
     public static final String NGAT_KET_NOI = "NGAT_KET_NOI";
+public static final String RROI_PHONG = "RROI_PHONG";
 
     
       // Các response server gửi về client 
