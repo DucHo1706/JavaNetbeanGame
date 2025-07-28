@@ -21,7 +21,7 @@ public class GamePanel extends JPanel {
     // Cac thanh phan chinh
     private GameRenderer renderer;
     private GameLogic gameLogic;
-    
+    private boolean gameOver = false;
     // Du lieu game
     private Point firePlayer;
     private Point waterPlayer;
@@ -43,7 +43,8 @@ public class GamePanel extends JPanel {
     private Set<String> nguoiChoiDaSanSang = new HashSet<>();
     private JTextArea readyStatusArea; // Hiển thị người chơi đã sẵn sàng
     
-    
+    private boolean readyButtonVisible = false;
+
         // 1. Thêm biến toàn cục ở đầu class GamePanel
     private int tongThoiGianChoi = 0;      // Tổng thời gian chơi tích lũy (giây)
     private int thoiGianVongHienTai = 0;   // Thời gian vòng hiện tại (giây)
@@ -152,7 +153,9 @@ private void capNhatHienThiThoiGian() {
         this.add(timeLabel);
 
         readyButton = new JButton("Sẵn sàng");
+        add(readyButton, BorderLayout.SOUTH);
         readyButton.setVisible(false);
+        
         readyButton.addActionListener(e -> {
             // Gửi lệnh SAN_SANG lên server
             if (networkManager != null) {
@@ -173,17 +176,19 @@ private void capNhatHienThiThoiGian() {
   this.add(labelThoiGian);
     }
 
-    public void showReadyButton(boolean show) {
-        SwingUtilities.invokeLater(() -> {
-            readyButton.setVisible(show);
-            readyButton.setEnabled(true);
-            System.out.println("Nút 'Sẵn sàng' đã được " + (show ? "hiển thị" : "ẩn đi"));
-            if (show) {
-                resetReadyStatus(); // Xóa trạng thái cũ khi hiện nút
-                System.out.println("Đã reset trạng thái người chơi đã sẵn sàng");
-            }
-        });
-    }
+  public void showReadyButton(boolean show) {
+    SwingUtilities.invokeLater(() -> {
+        readyButtonVisible = show;
+        readyButton.setVisible(show);
+        readyButton.setEnabled(true);
+        System.out.println("Nút 'Sẵn sàng' đã được " + (show ? "hiển thị" : "ẩn đi"));
+        if (show) {
+            resetReadyStatus(); // Xóa trạng thái cũ khi hiện nút
+            System.out.println("Đã reset trạng thái người chơi đã sẵn sàng");
+        }
+    });
+}
+
 
     public void updateReadyStatus(String playerId) {
         nguoiChoiDaSanSang.add(playerId);
@@ -516,5 +521,14 @@ private void capNhatHienThiThoiGian() {
     public Point getPlayerPosition() {
         return myPlayer != null ? new Point(myPlayer) : null;
     }
-    
+    public void setGameOver(boolean over) {
+    this.gameOver = over;
+}
+
+public void sendMove(int x, int y, String direction) {
+    if (gameOver) {
+        return; // Không gửi di chuyển khi game kết thúc
+    }
+    networkManager.sendMessage("DI_CHUYEN:" + x + ":" + y + ":" + direction);
+}
 }

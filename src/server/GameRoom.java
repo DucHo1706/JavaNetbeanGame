@@ -45,30 +45,44 @@ public class GameRoom {
     private void luuBangXepHangRaFile() {
         server.luuBangXepHangRaFile();
     }
-     private void xuLyKetThucMan() {
-        troChoiDaBatDau = false;
-        manDaKetThuc = true;
+    private void xuLyKetThucMan() {
+    troChoiDaBatDau = false;
+    manDaKetThuc = true;
 
-        if (timer != null) {
-            timer.cancel();
-            timer = null;
-        }
-
-        phatTinNhanChoTatCa("MAN_KET_THUC");
-        System.out.println("Màn chơi trong phòng " + maPhong + " đã kết thúc do hết giờ.");
-
-        nguoiChoiSanSang.clear();
-
-        bangXepHang.clear();
-        for (String nguoiChoi : danhSachNguoiChoi.keySet()) {
-            int tongTG = server.getTongThoiGianChoi().getOrDefault(nguoiChoi, 0);
-            bangXepHang.put(nguoiChoi, tongTG);
-        }
-
-        luuBangXepHangRaFile();
-
-        phatTinNhanChoTatCa("YEU_CAU_SAN_SANG");
+    if (timer != null) {
+        timer.cancel();
+        timer = null;
     }
+
+    phatTinNhanChoTatCa("MAN_KET_THUC");
+    guiViTriCuoiCung(); // Gửi vị trí cuối cùng của người chơi
+    System.out.println("Màn chơi trong phòng " + maPhong + " đã kết thúc do hết giờ.");
+
+    nguoiChoiSanSang.clear();
+
+    bangXepHang.clear();
+    for (String nguoiChoi : danhSachNguoiChoi.keySet()) {
+        int tongTG = server.getTongThoiGianChoi().getOrDefault(nguoiChoi, 0);
+        bangXepHang.put(nguoiChoi, tongTG);
+    }
+
+    luuBangXepHangRaFile();
+
+    phatTinNhanChoTatCa("YEU_CAU_SAN_SANG");
+}
+
+private void guiViTriCuoiCung() {
+    for (Map.Entry<String, Point> entry : viTriNguoiChoi.entrySet()) {
+        String maNguoiChoi = entry.getKey();
+        Point p = entry.getValue();
+        String huongMacDinh = "DOWN"; // hoặc lấy hướng thực tế nếu lưu
+        PrintWriter writer = luongGuiTinNhan.get(maNguoiChoi);
+        if (writer != null) {
+            writer.println("NGUOI_CHOI_DI_CHUYEN:" + maNguoiChoi + ":" + p.x + ":" + p.y + ":" + huongMacDinh);
+        }
+    }
+}
+
 
     public void chuyenSangCapDoTiepTheo() {
         nguoiChoiTaiCua.clear();
@@ -223,7 +237,7 @@ public void nguoiChoiSanSang(String maNguoiChoi) {
 
 
 
-  public void capNhatViTriNguoiChoi(String maNguoiChoi, int x, int y, String huong) {
+public void capNhatViTriNguoiChoi(String maNguoiChoi, int x, int y, String huong) {
     if (troChoiDaBatDau && !manDaKetThuc) {
         viTriNguoiChoi.put(maNguoiChoi, new Point(x, y));
         phatTinNhanChoNguoiKhac(maNguoiChoi, "NGUOI_CHOI_DI_CHUYEN:" + maNguoiChoi + ":" + x + ":" + y + ":" + huong);

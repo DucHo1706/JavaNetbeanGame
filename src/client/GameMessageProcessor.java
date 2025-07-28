@@ -8,7 +8,7 @@ public class GameMessageProcessor implements IMessageHandler {
     private JFrame parentFrame;
     private String playerType;
     private GameClient gameClient;
-
+private boolean gameOver = false;
     public GameMessageProcessor(GamePanel gamePanel, JFrame parentFrame) {
         this.gamePanel = gamePanel;
         this.parentFrame = parentFrame;
@@ -75,7 +75,11 @@ public class GameMessageProcessor implements IMessageHandler {
                 }
                 break;
             case "MAN_KET_THUC":
-                gamePanel.setStatus("Màn chơi đã kết thúc!");
+               gameOver = true;
+            gamePanel.setGameOver(true);
+            gamePanel.setStatus("Màn chơi đã kết thúc!");
+            JOptionPane.showMessageDialog(parentFrame, "Màn chơi đã kết thúc!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            
                 break;
             case "YEU_CAU_SAN_SANG":
                 gamePanel.showReadyButton(true);
@@ -98,6 +102,7 @@ public class GameMessageProcessor implements IMessageHandler {
                 gameClient.leaveRoomAndBackToLobby();
             }
             break;
+            
             default:
                 System.out.println("Lệnh không xác định: " + command);
         }
@@ -139,14 +144,19 @@ public class GameMessageProcessor implements IMessageHandler {
         }
     }
 
-    private void handlePlayerMove(String[] parts) {
-        if (parts.length > 4) {
+   private void handlePlayerMove(String[] parts) {
+    if (parts.length > 4) {
+        if (!gameOver) { // Chỉ cập nhật vị trí khi gameOver == false
             gamePanel.updateOtherPlayer(parts[1],
                     Integer.parseInt(parts[2]),
                     Integer.parseInt(parts[3]),
                     parts[4]);
+        } else {
+            System.out.println("Không cập nhật vị trí người chơi khác vì game đã kết thúc");
         }
     }
+}
+
 
     private void handleNextLevel(String[] parts) {
         if (parts.length > 1) {
