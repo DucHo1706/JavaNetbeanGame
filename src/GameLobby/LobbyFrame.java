@@ -5,16 +5,20 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import client.GameClient;
+import client.SoundManager;
 
 public class LobbyFrame extends JFrame {
     private GameClient gameClient;
+    private SoundManager soundManager;
 
     public LobbyFrame() {
         setTitle("Màn Hình Chính Game"); 
         setSize(500, 350);          
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); 
         setLocationRelativeTo(null);  
-        setResizable(false);     
+        setResizable(false);    
+        soundManager = new SoundManager(); 
+
 
         JPanel panel = new JPanel();
         panel.setLayout(new GridLayout(3, 1, 10, 20));
@@ -55,6 +59,7 @@ public class LobbyFrame extends JFrame {
                                 JOptionPane.YES_NO_OPTION);
                 if (confirm == JOptionPane.YES_OPTION) {
                     if (gameClient != null) {
+                        soundManager.stopBackgroundMusic();
                         gameClient.disconnectAndClose();
                     }
                     System.exit(0);

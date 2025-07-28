@@ -10,6 +10,7 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.awt.Point;
+import client.SoundManager;
 
 public class GameServer {
     private ServerSocket serverSocket;
@@ -17,12 +18,15 @@ public class GameServer {
     private Map<Socket, String> danhSachSocketNguoiChoi;
     private boolean dangChay;
     private NetworkManager networkManager;
+    private SoundManager SoundManager;
 
     private Map<String, Integer> tongThoiGianChoi = new ConcurrentHashMap<>();
 
     public GameServer() {
         danhSachPhongChoi = new ConcurrentHashMap<>();
         danhSachSocketNguoiChoi = new ConcurrentHashMap<>();
+            SoundManager = new SoundManager();
+        SoundManager.playBackgroundMusic("/Sound/Fireboy and Watergirl Soundtrack Main Level Theme.wav");
         dangChay = false;
          // Load bảng xếp hạng từ file khi khởi động server
         Map<String, Integer> loadedRankings = LeaderboardUtils.loadLeaderboardFromFile();

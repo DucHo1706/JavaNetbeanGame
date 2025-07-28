@@ -7,21 +7,27 @@ import java.awt.event.*;
 import java.io.BufferedReader;
 import java.io.PrintWriter;
 import GameLobby.LobbyFrame;
+import client.SoundManager;
 
 public class GameClient extends JFrame implements KeyListener {
     private NetworkManager networkManager;
     private GameMessageProcessor messageProcessor;
     private GamePanel gamePanel;
     private String playerId;
-    private LobbyFrame lobbyFrame;  // Tham chiếu đến lobby để show lại khi thoát game
+    private LobbyFrame lobbyFrame;
     private String currentRoomId = "";
+    private SoundManager soundManager;
 
     public GameClient(LobbyFrame lobbyFrame) {
         this.lobbyFrame = lobbyFrame;
-        playerId = "Player_" + System.currentTimeMillis();
+        // playerId nên là duy nhất và có thể được xác định (ví dụ: từ một màn hình đăng nhập)
+        // Hiện tại dùng System.currentTimeMillis() để tạo ID,
+        // nếu muốn chỉ 1 client/player, bạn cần một cơ chế ID bền vững hơn
+        playerId = "Player_" + System.currentTimeMillis(); 
+        soundManager = new SoundManager();
         initializeComponents();
         initializeGUI();
-        connectToServer();
+        connectToServer(); 
     }
 
     private void initializeComponents() {
@@ -45,7 +51,7 @@ public class GameClient extends JFrame implements KeyListener {
 
         JButton btnBack = new JButton("Quay lại");
         btnBack.addActionListener(e -> {
-                int confirm = JOptionPane.showConfirmDialog(this,
+               int confirm = JOptionPane.showConfirmDialog(this,
                "Bạn có chắc chắn muốn rời phòng và quay lại Lobby?",
                "Xác nhận", JOptionPane.YES_NO_OPTION);
            if (confirm == JOptionPane.YES_OPTION) {
@@ -69,6 +75,7 @@ public class GameClient extends JFrame implements KeyListener {
 
        // showInstructions();
     }
+
     public void showInstructions() {
         String instructions = "HƯỚNG DẪN CHƠI:\n\n" +
                 "• Sử dụng WASD hoặc phím mũi tên để di chuyển\n" +
@@ -81,57 +88,53 @@ public class GameClient extends JFrame implements KeyListener {
         JOptionPane.showMessageDialog(this, instructions, "Trò chơi Lửa và Nước", JOptionPane.INFORMATION_MESSAGE);
     }
 
- private void connectToServer() {
-    if (networkManager.connect()) {
-        gamePanel.setStatus("Đã kết nối! Đang tham gia game...");
-        currentRoomId = ""; // Reset phòng khi kết nối mới
-        System.out.println("[GameClient] Kết nối server thành công, gửi tham gia phòng rỗng");
+    private void connectToServer() {
+        if (networkManager.connect()) {
+            gamePanel.setStatus("Đã kết nối! Đang tham gia game...");
+            currentRoomId = ""; // Reset phòng khi kết nối mới
+            System.out.println("[GameClient] Kết nối server thành công, gửi tham gia phòng rỗng");
+            networkManager.sendMessage(Constants.THAM_GIA + ":" + playerId + ":" + currentRoomId);
+        } else {
+            JOptionPane.showMessageDialog(this,
+                "Không thể kết nối đến server!\nVui lòng kiểm tra server đã chạy chưa.",
+                "Lỗi kết nối", JOptionPane.ERROR_MESSAGE);
+            System.exit(1);
+        }
+    }
+
+    public void vaoPhong(String maPhong) {
+        currentRoomId = maPhong == null ? "" : maPhong;
+        updateWindowTitle();
+        System.out.println("Đang gửi lệnh THAM_GIA với mã phòng: '" + currentRoomId + "'");
         networkManager.sendMessage(Constants.THAM_GIA + ":" + playerId + ":" + currentRoomId);
-    } else {
-        JOptionPane.showMessageDialog(this,
-            "Không thể kết nối đến server!\nVui lòng kiểm tra server đã chạy chưa.",
-            "Lỗi kết nối", JOptionPane.ERROR_MESSAGE);
-        System.exit(1);
     }
-}
 
-
-public void vaoPhong(String maPhong) {
-    currentRoomId = maPhong == null ? "" : maPhong;
-    updateWindowTitle();  // Cập nhật tiêu đề ngay khi thay đổi mã phòng
-    System.out.println("Đang gửi lệnh THAM_GIA với mã phòng: '" + currentRoomId + "'");
-    networkManager.sendMessage(Constants.THAM_GIA + ":" + playerId + ":" + currentRoomId);
-}
-
-
-      public void leaveRoomAndBackToLobby() {
-    if (networkManager.isConnected()) {
-        networkManager.sendMessage(Constants.RROI_PHONG + ":" + playerId); // gửi lệnh rời phòng
+    public void leaveRoomAndBackToLobby() {
+        if (networkManager.isConnected()) {
+            networkManager.sendMessage(Constants.RROI_PHONG + ":" + playerId);
+        }
+        currentRoomId = "";
+        setVisible(false);
+        if (lobbyFrame != null) {
+            lobbyFrame.showLobby();
+        }   
     }
-    currentRoomId = "";  // Reset mã phòng khi thoát
-    setVisible(false);
-    if (lobbyFrame != null) {
-        lobbyFrame.showLobby();
-    }   
-}
 
-
-            public void disconnectAndClose() {
-          if (networkManager.isConnected()) {
-              networkManager.sendMessage(Constants.RROI_PHONG + ":" + playerId);
-              networkManager.disconnect();
-          }
-          currentRoomId = "";  // Reset mã phòng khi đóng
-          dispose();
-          if (lobbyFrame != null) {
-              lobbyFrame.showLobby();
-          }
-      }
-
-
+    public void disconnectAndClose() {
+        if (networkManager.isConnected()) {
+            networkManager.sendMessage(Constants.RROI_PHONG + ":" + playerId);
+            networkManager.disconnect();
+        }
+        currentRoomId = "";
+        dispose();
+        if (lobbyFrame != null) {
+            lobbyFrame.showLobby();
+        }
+    }
 
     @Override
     public void keyPressed(KeyEvent e) {
+        // Đảm bảo đã kết nối và loại người chơi đã được xác định
         if (!networkManager.isConnected() || messageProcessor.getPlayerType() == null) {
             return;
         }
@@ -143,6 +146,9 @@ public void vaoPhong(String maPhong) {
                 Point playerPos = gamePanel.getPlayerPosition();
                 String moveMessage = Constants.DI_CHUYEN + ":" + playerPos.x + ":" + playerPos.y + ":" + direction;
                 networkManager.sendMessage(moveMessage);
+
+                // Phát âm thanh di chuyển chung cho cả hai nhân vật
+                // Đảm bảo bạn có file 'move_sound.wav' trong thư mục /sounds/
             }
         }
     }
@@ -165,11 +171,11 @@ public void vaoPhong(String maPhong) {
                 return "";
         }
     }
-    public void updateWindowTitle() {
-    String roomId = currentRoomId == null || currentRoomId.isEmpty() ? "Chưa vào phòng" : currentRoomId;
-    setTitle("Trò chơi Lửa và Nước - " + playerId + " | Phòng: " + roomId);
-}
 
+    public void updateWindowTitle() {
+        String roomId = currentRoomId == null || currentRoomId.isEmpty() ? "Chưa vào phòng" : currentRoomId;
+        setTitle("Trò chơi Lửa và Nước - " + playerId + " | Phòng: " + roomId);
+    }
 
     @Override
     public void keyTyped(KeyEvent e) {}
@@ -186,20 +192,18 @@ public void vaoPhong(String maPhong) {
 
     public boolean isConnected() {
         return networkManager.isConnected();
-        
     }
-      // Cho phép update mã phòng khi server gửi về
+
     public void setCurrentRoomId(String roomId) {
         this.currentRoomId = roomId;
-        updateWindowTitle();  
+        updateWindowTitle();
     }
 
     public String getCurrentRoomId() {
         return currentRoomId;
     }
-    public GamePanel getGamePanel() {
-    return gamePanel;
-}
 
+    public GamePanel getGamePanel() {
+        return gamePanel;
+    }
 }
-    
