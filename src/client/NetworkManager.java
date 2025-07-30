@@ -5,20 +5,28 @@ import java.io.*;
 import java.net.*;
 
 public class NetworkManager {
-    private Socket socket;              // Kết nối socket
-    private PrintWriter out;            // Gửi dữ liệu
-    private BufferedReader in;          // Nhận dữ liệu
-    private boolean connected = false;  // Trạng thái kết nối
-    private MessageHandler messageHandler; // Bộ xử lý tin nhắn
-    
-    public NetworkManager(MessageHandler handler) {
+  private Socket socket;              
+    private PrintWriter out;            
+    private BufferedReader in;          
+    private boolean connected = false;  
+    private IMessageHandler messageHandler; 
+    private MessageListener messageListener; 
+
+    // Interface cho lobby sử dụng
+    public interface MessageListener {
+        void onMessageReceived(String message);
+    }
+
+    // Constructor cho GameClient (có IMessageHandler)
+    public NetworkManager(IMessageHandler handler) {
         this.messageHandler = handler;
     }
     
-    /**
-     * Tạo kết nối đến server
-     * @return true nếu kết nối thành công
-     */
+    // Constructor cho LobbyFrame (không có handler)
+    public NetworkManager() {
+        this.messageHandler = null;
+    }
+    
     public boolean connect() {
         try {
             socket = new Socket(Constants.SERVER_HOST, Constants.SERVER_PORT);
@@ -26,55 +34,68 @@ public class NetworkManager {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             connected = true;
             
-            // Bắt đầu luồng lắng nghe tin nhắn từ server
             new Thread(this::listenToServer).start();
             return true;
             
         } catch (IOException e) {
-            System.err.println("Lỗi kết nối: " + e.getMessage());
+            System.err.println("Loi ket noi: " + e.getMessage());
             return false;
         }
     }
     
-    /**
-     * Gửi tin nhắn đến server
-     */
     public void sendMessage(String message) {
         if (out != null && connected) {
             out.println(message);
         }
     }
     
-    /**
-     * Ngắt kết nối với server
-     */
     public void disconnect() {
         connected = false;
-        sendMessage("DISCONNECT");
+        if (out != null && connected) {
+            sendMessage(Constants.NGAT_KET_NOI); 
+        }
         try {
             if (socket != null) socket.close();
         } catch (IOException e) {
-            System.err.println("Lỗi đóng kết nối: " + e.getMessage());
+            System.err.println("Loi dong ket noi: " + e.getMessage());
         }
     }
     
-    /**
-     * Lắng nghe tin nhắn từ server
-     */
     private void listenToServer() {
         try {
             String message;
             while (connected && (message = in.readLine()) != null) {
-                messageHandler.handleMessage(message);
+                if (messageHandler != null) {
+                    messageHandler.handleMessage(message);
+                }
+                else if (messageListener != null) {
+                    messageListener.onMessageReceived(message);
+                }
             }
         } catch (IOException e) {
-            if (connected) {
+            if (connected && messageHandler != null) {
                 messageHandler.handleConnectionLost();
             }
         }
     }
     
+    public void setMessageListener(MessageListener listener) {
+        this.messageListener = listener;
+    }
+    
+    public void setMessageHandler(IMessageHandler handler) {
+        this.messageHandler = handler;
+    }
+    
     public boolean isConnected() { 
         return connected; 
+    }
+    
+    public BufferedReader getBufferedReader() {
+        return in;
+    }
+
+    public PrintWriter getPrintWriter() {
+        return out;
     }
 }

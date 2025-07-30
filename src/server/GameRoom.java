@@ -1,348 +1,530 @@
 package server;
 
+import client.GamePanel;
+import game.Item;
 import game.Monster;
 import utils.Constants;
-import java.io.*;
 import utils.PlayerType;
-import java.net.Socket;
+import java.io.*;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.awt.Point;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class GameRoom {
-    private String roomId;
-    private Map<String, Socket> players;
-    private Map<String, PrintWriter> playerWriters;
-    private Map<String, PlayerType> playerTypes; // "FIRE" hoặc "WATER"
-    private Map<String, Point> playerPositions; //  Lưu vị trí players
-    private int currentLevel;
-    private boolean gameStarted;
-    private Set<String> playersAtDoor;
-    private Level currentLevelData; // Lưu data level hiện tại
     
-    public GameRoom(String roomId) {
-        this.roomId = roomId;
-        this.players = new ConcurrentHashMap<>();
-        this.playerWriters = new ConcurrentHashMap<>();
-        this.playerTypes = new ConcurrentHashMap<>();
-        this.playerPositions = new ConcurrentHashMap<>(); // 
-        this.currentLevel = 1;
-        this.gameStarted = false;
-        this.playersAtDoor = new HashSet<>();
-    }
+    //  THUỘC TÍNH 
     
-public PlayerType addPlayer(Socket socket, String playerId) { 
-    players.put(playerId, socket);
-    try {
-        PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
-        playerWriters.put(playerId, writer);
-    } catch (IOException e) {
-        e.printStackTrace();
-    }
+    // Thông tin cơ bản
+    private String maPhong;
+    private GameServer server;
     
-    // SỬA: Dùng PlayerType enum thay vì hardcode string
-    PlayerType playerType = players.size() == 1 ? PlayerType.FIRE : PlayerType.WATER;
-    playerTypes.put(playerId, playerType);
+    // Quản lý người chơi
+    private Map<String, Socket> danhSachNguoiChoi;
+    private Map<String, PrintWriter> luongGuiTinNhan;
+    private Map<String, PlayerType> loaiNguoiChoi;
+    private Map<String, Point> viTriNguoiChoi;
     
-    // Set vị trí ban đầu
-    if (currentLevelData != null) {
-        if (PlayerType.WATER.equals(playerType)) {
-            playerPositions.put(playerId, new Point(currentLevelData.getWaterStart()));
-        } else {
-            playerPositions.put(playerId, new Point(currentLevelData.getFireStart()));
-        }
-    }
+    // Trạng thái game
+    private int capDoHienTai;
+    private boolean troChoiDaBatDau;
+    private boolean manDaKetThuc;
+    private Level duLieuCapDoHienTai;
     
-    System.out.println("Player " + playerId + " joined as " + playerType);
-    return playerType;
-}
+    // Theo dõi người chơi
+    private Set<String> nguoiChoiTaiCua;
+    private Set<String> nguoiChoiSanSang;
+    private Map<String, Integer> bangXepHang;
+    
+    // Quản lý thời gian
+    private ScheduledExecutorService scheduler;
+    private int thoiGianConLai = 60;
+    private GamePanel panel;
 
+    //Item
+    private Map<String, Integer> playerScores; // Điểm của từng người chơi
+    private int nextItemId = 1;
+    private Map<Integer, Item> danhSachItem;
     
-    public void removePlayer(String playerId) {
-        players.remove(playerId);
-        playerWriters.remove(playerId);
-        playerTypes.remove(playerId);
-        playerPositions.remove(playerId); 
-        playersAtDoor.remove(playerId);
+    //  CONSTRUCTOR 
+    
+    public GameRoom(String maPhong, GameServer server) {
+        this.maPhong = maPhong;
+        this.server = server;
+        this.danhSachNguoiChoi = new ConcurrentHashMap<>();
+        this.luongGuiTinNhan = new ConcurrentHashMap<>();
+        this.loaiNguoiChoi = new ConcurrentHashMap<>();
+        this.viTriNguoiChoi = new ConcurrentHashMap<>();
+        this.capDoHienTai = 1;
+        this.troChoiDaBatDau = false;
+        this.nguoiChoiTaiCua = new HashSet<>();
+        this.nguoiChoiSanSang = new HashSet<>();
+        this.bangXepHang = new ConcurrentHashMap<>();
+        this.scheduler = Executors.newScheduledThreadPool(1);
         
-        // Thông báo cho player còn lại
-        if (players.size() == 1) {
-            broadcastToAll("PLAYER_DISCONNECTED:" + playerId);
+        this.danhSachItem = new ConcurrentHashMap<>();
+        this.playerScores = new ConcurrentHashMap<>();
+        this.nextItemId = 1;
+    }
+
+    //  QUẢN LÝ NGƯỜI CHƠI 
+    
+    public PlayerType themNguoiChoi(Socket socket, String maNguoiChoi) {
+        danhSachNguoiChoi.put(maNguoiChoi, socket);
+        try {
+            PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
+            luongGuiTinNhan.put(maNguoiChoi, writer);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // Phân loại người chơi
+        boolean fireExists = loaiNguoiChoi.containsValue(PlayerType.FIRE);
+        boolean waterExists = loaiNguoiChoi.containsValue(PlayerType.WATER);
+
+        PlayerType loai;
+        if (!fireExists) {
+            loai = PlayerType.FIRE;
+        } else if (!waterExists) {
+            loai = PlayerType.WATER;
+        } else {
+            loai = PlayerType.FIRE;
+        }
+
+        loaiNguoiChoi.put(maNguoiChoi, loai);
+
+        // Đặt vị trí ban đầu
+        if (duLieuCapDoHienTai != null) {
+            if (PlayerType.WATER.equals(loai)) {
+                viTriNguoiChoi.put(maNguoiChoi, new Point(duLieuCapDoHienTai.getWaterStart()));
+            } else {
+                viTriNguoiChoi.put(maNguoiChoi, new Point(duLieuCapDoHienTai.getFireStart()));
+            }
+        }
+
+        System.out.println("[GameRoom " + maPhong + "] Thêm người chơi " + maNguoiChoi + " với loại " + loai);
+        return loai;
+    }
+
+    public void xoaNguoiChoi(String maNguoiChoi) {
+        danhSachNguoiChoi.remove(maNguoiChoi);
+        luongGuiTinNhan.remove(maNguoiChoi);
+        loaiNguoiChoi.remove(maNguoiChoi);
+        viTriNguoiChoi.remove(maNguoiChoi);
+        nguoiChoiTaiCua.remove(maNguoiChoi);
+        nguoiChoiSanSang.remove(maNguoiChoi);
+
+        // Reset phòng nếu thiếu người
+        if (danhSachNguoiChoi.size() < Constants.MAX_PLAYERS_PER_ROOM) {
+            troChoiDaBatDau = false;
+            manDaKetThuc = false;
+            capDoHienTai = 1;
+            nguoiChoiTaiCua.clear();
+            nguoiChoiSanSang.clear();
+            System.out.println("Phòng " + maPhong + " đã reset trạng thái do thiếu người chơi.");
+        }
+
+        if (danhSachNguoiChoi.size() == 1) {
+            phatTinNhanChoTatCa(Constants.NGUOI_CHOI_NGAT_KET_NOI + ":" + maNguoiChoi);
+            phatTinNhanChoTatCa("PHONG_KHONG_HOAT_DONG");
         }
     }
-    
-    public void startGame() {
-        // bắt đầu trò chơi
-        gameStarted = true;
-        currentLevelData = createLevel(currentLevel);
-        System.out.println("Starting game in room " + roomId + " - Level " + currentLevel);
-        broadcastToAll("GAME_START:LEVEL:" + currentLevel);
-        sendLevelData();
-        
-        // Set vị trí ban đầu cho players
-        resetPlayerPositions();
-    }
-    
-   public void updatePlayerPosition(String playerId, int x, int y, String direction) {
-    if (gameStarted) {
-        //  Lưu vị trí mới
-        playerPositions.put(playerId, new Point(x, y));
-        // cập nhật lại vị trí
-        broadcastToOthers(playerId, "PLAYER_MOVE:" + playerId + ":" + x + ":" + y + ":" + direction);
-        
-        //  Kiểm tra door với currentLevelData
-        if (currentLevelData != null) {
-            Point doorPos = currentLevelData.getDoor();
-            System.out.println("? Player " + playerId + " at (" + x + "," + y + "), Door at " + doorPos);
+
+    public void nguoiChoiSanSang(String maNguoiChoi) {
+        nguoiChoiSanSang.add(maNguoiChoi);
+
+        if (nguoiChoiSanSang.size() == danhSachNguoiChoi.size()) {
+            nguoiChoiSanSang.clear();
+            troChoiDaBatDau = true;
+            manDaKetThuc = false;
+            phatTinNhanChoTatCa("BAT_DAU_TRO_CHOI:CAP_DO:" + capDoHienTai);
+            batDauDemThoiGian();
+            guiDuLieuCapDo();
+            datLaiViTriNguoiChoi();
             
-            if (doorPos != null && doorPos.x == x && doorPos.y == y) {
-                playersAtDoor.add(playerId);
-                System.out.println("? Player " + playerId + " reached the door! Players at door: " + playersAtDoor.size());
-                
-                // Kiểm tra xem cả 2 player đã ở door chưa
-                if (playersAtDoor.size() == 2) {
-                    System.out.println("? Both players at door! Level complete!");
-                    nextLevel();
+            System.out.println("Phòng " + maPhong + " bắt đầu lại màn chơi sau khi cả 2 người chơi sẵn sàng.");
+        }
+    }
+
+    //  GAME FLOW 
+    
+    public void batDauTroChoi() {
+        troChoiDaBatDau = true;
+        duLieuCapDoHienTai = taoCapDo(capDoHienTai);
+        System.out.println("Bắt đầu trò chơi phòng " + maPhong + " - Cấp độ " + capDoHienTai);
+        phatTinNhanChoTatCa("BAT_DAU_TRO_CHOI:CAP_DO:" + capDoHienTai);
+        guiDuLieuCapDo();
+        datLaiViTriNguoiChoi();
+        batDauDemThoiGian();
+    }
+
+    public void chuyenSangCapDoTiepTheo() {
+        nguoiChoiTaiCua.clear();
+        
+        // Cập nhật cấp độ cao nhất
+        for (String nguoiChoi : danhSachNguoiChoi.keySet()) {
+            server.capNhatCapDoCaoNhat(nguoiChoi, capDoHienTai);
+        }
+        
+        capDoHienTai++;
+
+        if (capDoHienTai <= Constants.TOTAL_LEVELS) {
+            duLieuCapDoHienTai = taoCapDo(capDoHienTai);
+            System.out.println("Phòng " + maPhong + " chuyển sang cấp độ " + capDoHienTai);
+            phatTinNhanChoTatCa(Constants.CAP_NHAT_CAP_DO_TIEP_THEO + ":" + capDoHienTai);
+            guiDuLieuCapDo();
+            datLaiViTriNguoiChoi();
+            batDauDemThoiGian();
+        } else {
+            System.out.println("Phòng " + maPhong + " đã hoàn thành tất cả cấp độ!");
+            phatTinNhanChoTatCa(Constants.GAME_HOAN_THANH);
+            troChoiDaBatDau = false;
+
+            // Lưu bảng xếp hạng
+            bangXepHang.clear();
+            for (String nguoiChoi : danhSachNguoiChoi.keySet()) {
+                int capDoCaoNhat = server.getCapDoCaoNhat().getOrDefault(nguoiChoi, capDoHienTai);
+                bangXepHang.put(nguoiChoi, capDoCaoNhat);
+            }
+            luuBangXepHangRaFile();
+        }
+    }
+
+    private void xuLyKetThucMan() {
+        troChoiDaBatDau = false;
+        manDaKetThuc = true;
+        dungDemThoiGian();
+      
+        phatTinNhanChoTatCa("MAN_KET_THUC");
+        
+        System.out.println("Màn chơi trong phòng " + maPhong + " đã kết thúc do hết giờ.");
+
+        nguoiChoiSanSang.clear();
+
+        // Cập nhật bảng xếp hạng
+        bangXepHang.clear();
+        for (String nguoiChoi : danhSachNguoiChoi.keySet()) {
+            int capDoCaoNhat = server.getCapDoCaoNhat().getOrDefault(nguoiChoi, capDoHienTai);
+            bangXepHang.put(nguoiChoi, capDoCaoNhat);
+        }
+
+        luuBangXepHangRaFile();
+        phatTinNhanChoTatCa("YEU_CAU_SAN_SANG");
+    }
+
+    //  XỬ LÝ DI CHUYỂN 
+    
+    public void capNhatViTriNguoiChoi(String maNguoiChoi, int x, int y, String huong) {
+        if (troChoiDaBatDau && !manDaKetThuc) {
+            viTriNguoiChoi.put(maNguoiChoi, new Point(x, y));
+            phatTinNhanChoNguoiKhac(maNguoiChoi, "NGUOI_CHOI_DI_CHUYEN:" + maNguoiChoi + ":" + x + ":" + y + ":" + huong);
+
+            // Kiểm tra điều kiện thắng
+            if (duLieuCapDoHienTai != null) {
+                Point viTriCua = duLieuCapDoHienTai.getDoor();
+                if (viTriCua != null && viTriCua.x == x && viTriCua.y == y) {
+                    nguoiChoiTaiCua.add(maNguoiChoi);
+                    if (nguoiChoiTaiCua.size() == Constants.MAX_PLAYERS_PER_ROOM) {
+                        chuyenSangCapDoTiepTheo();
+                    }
+                } else {
+                    nguoiChoiTaiCua.remove(maNguoiChoi);
                 }
-            } else {
-                playersAtDoor.remove(playerId);
             }
         }
     }
-}
 
-    public void nextLevel() {
-        playersAtDoor.clear();
-        currentLevel++;
-        
-        if (currentLevel <= Constants.TOTAL_LEVELS) {
-            currentLevelData = createLevel(currentLevel); 
-            System.out.println("Room " + roomId + " advancing to level " + currentLevel);
-            broadcastToAll("NEXT_LEVEL:" + currentLevel);
-            sendLevelData();
-            resetPlayerPositions(); //  Reset vị trí
-        } else {
-            System.out.println("Room " + roomId + " completed all levels!");
-            broadcastToAll("GAME_COMPLETE");
-            gameStarted = false;
+    public void datLaiViTriNguoiChoi() {
+        if (duLieuCapDoHienTai != null) {
+            for (Map.Entry<String, PlayerType> entry : loaiNguoiChoi.entrySet()) {
+                String maNguoiChoi = entry.getKey();
+                PlayerType loai = entry.getValue();
+
+                if (PlayerType.WATER.equals(loai)) {
+                    viTriNguoiChoi.put(maNguoiChoi, new Point(duLieuCapDoHienTai.getWaterStart()));
+                } else if (PlayerType.FIRE.equals(loai)) {
+                    viTriNguoiChoi.put(maNguoiChoi, new Point(duLieuCapDoHienTai.getFireStart()));
+                }
+            }
         }
     }
-    // gửi dữ liệu level
-    private void sendLevelData() {
-        String levelData = generateLevelData(currentLevel);
-        broadcastToAll("LEVEL_DATA:" + levelData);
-        System.out.println("Sent level " + currentLevel + " data to room " + roomId);
-    }
+
+    //  QUẢN LÝ THỜI GIAN 
     
-private String generateLevelData(int level) {
-    switch (level) {
+    private void batDauDemThoiGian() {
+        thoiGianConLai = 60;
+        manDaKetThuc = false;
+        troChoiDaBatDau = true;
+
+        dungDemThoiGian();
+        scheduler = Executors.newScheduledThreadPool(1);
+
+        scheduler.scheduleAtFixedRate(() -> {
+            if (manDaKetThuc || !troChoiDaBatDau) {
+                dungDemThoiGian();
+                return;
+            }
+
+            if (thoiGianConLai > 0) {
+                thoiGianConLai--;
+                phatTinNhanChoTatCa("TIME_UPDATE:" + thoiGianConLai);
+            } else {
+                manDaKetThuc = true;
+                troChoiDaBatDau = false;
+                dungDemThoiGian();
+                xuLyKetThucMan();
+            }
+        }, 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void dungDemThoiGian() {
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdown();
+        }
+    }
+
+    //  TẠO LEVEL 
+    
+    private void guiDuLieuCapDo() {
+        String duLieu = taoChuoiDuLieuCapDo(capDoHienTai);
+        phatTinNhanChoTatCa("DU_LIEU_CAP_DO:" + duLieu);
+        System.out.println("Đã gửi dữ liệu cấp độ " + capDoHienTai + " cho phòng " + maPhong);
+    }
+
+    private Level taoCapDo(int capDo) {
+        String duLieu = taoChuoiDuLieuCapDo(capDo);
+        return phanTichDuLieuCapDo(duLieu);
+    }
+
+private String taoChuoiDuLieuCapDo(int capDo) {
+    switch (capDo) {
         case 1:
-            // LEVEL 1: Maze thú vị hơn 24x16 với đường đi rõ ràng
             return "SIMPLE:24x16:WALLS:" +
-                   // Outer walls (chỉ 3 mặt, để lại lối thoát ở dưới)
-                   "0,0;1,0;2,0;3,0;4,0;5,0;6,0;7,0;8,0;9,0;10,0;11,0;12,0;13,0;14,0;15,0;16,0;17,0;18,0;19,0;20,0;21,0;22,0;23,0;" +
-                   "0,1;0,2;0,3;0,4;0,5;0,6;0,7;0,8;0,9;0,10;0,11;0,12;0,13;0,14;0,15;" +
-                   "23,1;23,2;23,3;23,4;23,5;23,6;23,7;23,8;23,9;23,10;23,11;23,12;23,13;23,14;23,15;" +
-                   // Inner maze - tạo đường đi thú vị
-                   "2,2;3,2;4,2;5,2;6,2;8,2;9,2;10,2;12,2;13,2;14,2;16,2;17,2;18,2;20,2;21,2;" +
-                   "2,3;6,3;10,3;14,3;18,3;21,3;" +
-                   "2,4;3,4;6,4;7,4;10,4;11,4;14,4;15,4;18,4;19,4;21,4;" +
-                   "6,5;11,5;15,5;19,5;" +
-                   "1,6;2,6;4,6;5,6;6,6;8,6;9,6;11,6;12,6;15,6;16,6;19,6;20,6;22,6;" +
-                   "4,7;8,7;12,7;16,7;20,7;" +
-                   "4,8;5,8;8,8;9,8;12,8;13,8;16,8;17,8;20,8;21,8;" +
-                   "1,9;5,9;9,9;17,9;21,9;" +
-                   "1,10;2,10;5,10;6,10;9,10;10,10;13,10;14,10;17,10;18,10;21,10;22,10;" +
-                   "2,11;6,11;10,11;14,11;18,11;22,11;" +
-                   "2,12;3,12;6,12;7,12;10,12;11,12;14,12;15,12;18,12;19,12;22,12;" +
-                   "3,13;7,13;11,13;15,13;19,13" +
-                   ":WATER:1,14:FIRE:22,14:DOOR:11,1" +
-                   ":MONSTERS:7,3,LENXUONG;15,5,TRAIPHAI;3,8,TINH;19,9,LENXUONG;11,11,TRAIPHAI;5,13,LENXUONG;17,13,TINH";
-                   
+                    "0,0;1,0;2,0;3,0;4,0;5,0;6,0;7,0;8,0;9,0;10,0;11,0;12,0;13,0;14,0;15,0;16,0;17,0;18,0;19,0;20,0;21,0;22,0;23,0;" +
+                    "0,1;0,2;0,3;0,4;0,5;0,6;0,7;0,8;0,9;0,10;0,11;0,12;0,13;0,14;0,15;" +
+                    "23,1;23,2;23,3;23,4;23,5;23,6;23,7;23,8;23,9;23,10;23,11;23,12;23,13;23,14;23,15;" +
+                    "2,2;3,2;4,2;5,2;6,2;8,2;9,2;10,2;12,2;13,2;14,2;16,2;17,2;18,2;20,2;21,2;" +
+                    "2,3;6,3;10,3;14,3;18,3;21,3;" +
+                    "2,4;3,4;6,4;7,4;10,4;11,4;14,4;15,4;18,4;19,4;21,4;" +
+                    "6,5;11,5;15,5;19,5;" +
+                    "1,6;2,6;4,6;5,6;6,6;8,6;9,6;11,6;12,6;15,6;16,6;19,6;20,6;22,6;" +
+                    "4,7;8,7;12,7;16,7;20,7;" +
+                    "4,8;5,8;8,8;9,8;12,8;13,8;16,8;17,8;20,8;21,8;" +
+                    "1,9;5,9;9,9;17,9;21,9;" +
+                    "1,10;2,10;5,10;6,10;9,10;10,10;13,10;14,10;17,10;18,10;21,10;22,10;" +
+                    "2,11;6,11;10,11;14,11;18,11;22,11;" +
+                    "2,12;3,12;6,12;7,12;10,12;11,12;14,12;15,12;18,12;19,12;22,12;" +
+                    "3,13;7,13;11,13;15,13;19,13" +
+                    ":WATER:1,14:FIRE:22,14:DOOR:11,1" +
+                    ":MONSTERS:7,3,LENXUONG;15,5,TRAIPHAI;3,8,TINH;19,9,LENXUONG;11,11,TRAIPHAI;5,13,LENXUONG;17,13,TINH" +
+                                        ":ITEMS:" +
+                       "5,7,COIN;" +    // COIN ở (5,7)
+                       "7,9,COIN;" +    // cách COIN trước 2 ô theo x và y
+                       "9,11,GEM;" +    // GEM cách COIN trước 2 ô
+                       "11,13,GEM;" +   // cách GEM trước 2 ô
+                       "13,7,CHEST;" +  // CHEST cách COIN đầu 2 ô theo x và y
+                       "15,9,CHEST;"    // cách CHEST trước 2 ô
+                       ;
+
         case 2:
-            // LEVEL 2: Phức tạp hơn với nhiều lối đi
             return "MEDIUM:24x16:WALLS:" +
-                   // Outer walls
                    "0,0;1,0;2,0;3,0;4,0;5,0;6,0;7,0;8,0;9,0;10,0;11,0;12,0;13,0;14,0;15,0;16,0;17,0;18,0;19,0;20,0;21,0;22,0;23,0;" +
                    "0,1;0,2;0,3;0,4;0,5;0,6;0,7;0,8;0,9;0,10;0,11;0,12;0,13;0,14;0,15;" +
                    "23,1;23,2;23,3;23,4;23,5;23,6;23,7;23,8;23,9;23,10;23,11;23,12;23,13;23,14;23,15;" +
-                   // Complex inner maze
-                   "2,1;3,1;5,1;6,1;8,1;9,1;11,1;12,1;14,1;15,1;17,1;18,1;20,1;21,1;" +
-                   "3,2;6,2;9,2;12,2;15,2;18,2;21,2;" +
-                   "1,3;3,3;4,3;6,3;7,3;9,3;10,3;12,3;13,3;15,3;16,3;18,3;19,3;21,3;22,3;" +
-                   "1,4;4,4;7,4;10,4;13,4;16,4;19,4;22,4;" +
-                   "1,5;2,5;4,5;5,5;7,5;8,5;10,5;11,5;13,5;14,5;16,5;17,5;19,5;20,5;22,5;" +
+                   "8,1;9,1;11,1;12,1;14,1;15,1;17,1;18,1;" +
+                   "3,2;6,2;9,2;12,2;15,2;18,2;" +
+                   "1,3;3,3;4,3;6,3;9,3;10,3;12,3;13,3;15,3;16,3;18,3;19,3;22,3;" +
+                   "1,4;4,4;10,4;13,4;22,4;" +
+                   "1,5;2,5;4,5;5,5;8,5;10,5;11,5;13,5;14,5;16,5;17,5;19,5;20,5;22,5;" +
                    "2,6;5,6;8,6;11,6;14,6;17,6;20,6;" +
                    "2,7;3,7;5,7;6,7;8,7;9,7;11,7;12,7;14,7;15,7;17,7;18,7;20,7;21,7;" +
                    "3,8;6,8;9,8;12,8;15,8;18,8;21,8;" +
                    "1,9;3,9;4,9;6,9;7,9;9,9;10,9;12,9;13,9;15,9;16,9;18,9;19,9;21,9;22,9;" +
-                   "1,10;4,10;7,10;10,10;13,10;16,10;19,10;22,10;" +
-                   "1,11;2,11;4,11;5,11;7,11;8,11;10,11;11,11;13,11;14,11;16,11;17,11;19,11;20,11;22,11;" +
+                   "1,10;4,10;10,10;13,10;16,10;19,10;22,10;" +
+                   "1,11;2,11;4,11;5,11;8,11;10,11;11,11;13,11;14,11;16,11;17,11;19,11;20,11;22,11;" +
                    "2,12;5,12;8,12;11,12;14,12;17,12;20,12;" +
-                   "2,13;3,13;5,13;6,13;8,13;9,13;11,13;12,13;14,13;15,13;17,13;18,13;20,13;21,13" +
+                   "2,13;3,13;5,13;6,13;8,13;11,13;12,13;14,13;15,13;17,13;18,13;20,13;21,13" +
                    ":WATER:1,1:FIRE:22,1:DOOR:11,15" +
-                   ":MONSTERS:4,2,LENXUONG;19,2,TRAIPHAI;7,4,TINH;16,4,LENXUONG;3,6,TRAIPHAI;20,6,LENXUONG;11,8,TINH;6,10,TRAIPHAI;17,10,LENXUONG;9,12,TINH;15,12,LENXUONG";
-                   
+                   ":MONSTERS:4,2,LENXUONG;19,2,TRAIPHAI;7,4,TRAIPHAI;16,4,TRAIPHAI;3,6,TRAIPHAI;20,4,LENXUONG;11,8,TINH;6,10,TRAIPHAI;17,10,LENXUONG;9,12,TINH;15,12,LENXUONG" +
+                   ":ITEMS:" +
+"4,6,COIN;" +     // COIN đầu tiên
+"6,8,COIN;" +     // cách COIN đầu 2 ô x và y
+"8,10,GEM;" +     // GEM cách COIN trước 2 ô
+"10,12,GEM;" +    // cách GEM trước 2 ô
+"12,6,CHEST;" +   // CHEST cách COIN đầu 2 ô theo x và y
+"14,8,CHEST;"     // cách CHEST trước 2 ô
+
+                      ;       // CHEST
+
         case 3:
-            // LEVEL 3: Cực kỳ phức tạp
             return "HARD:24x16:WALLS:" +
-                   // Outer walls
                    "0,0;1,0;2,0;3,0;4,0;5,0;6,0;7,0;8,0;9,0;10,0;11,0;12,0;13,0;14,0;15,0;16,0;17,0;18,0;19,0;20,0;21,0;22,0;23,0;" +
                    "0,1;0,2;0,3;0,4;0,5;0,6;0,7;0,8;0,9;0,10;0,11;0,12;0,13;0,14;0,15;" +
                    "23,1;23,2;23,3;23,4;23,5;23,6;23,7;23,8;23,9;23,10;23,11;23,12;23,13;23,14;23,15;" +
-                   // Very complex maze - nhiều ngõ cụt và đường vòng
-                   "1,1;2,1;4,1;5,1;7,1;8,1;10,1;11,1;13,1;14,1;16,1;17,1;19,1;20,1;22,1;" +
-                   "2,2;5,2;8,2;11,2;14,2;17,2;20,2;" +
-                   "1,3;2,3;4,3;5,3;6,3;8,3;9,3;11,3;12,3;14,3;15,3;17,3;18,3;20,3;21,3;22,3;" +
-                   "1,4;4,4;6,4;9,4;12,4;15,4;18,4;21,4;" +
-                   "1,5;2,5;4,5;5,5;6,5;7,5;9,5;10,5;12,5;13,5;15,5;16,5;18,5;19,5;21,5;22,5;" +
-                   "2,6;5,6;7,6;10,6;13,6;16,6;19,6;22,6;" +
-                   "2,7;3,7;5,7;6,7;7,7;8,7;10,7;11,7;13,7;14,7;16,7;17,7;19,7;20,7;22,7;" +
-                   "3,8;6,8;8,8;11,8;14,8;17,8;20,8;" +
-                   "1,9;3,9;4,9;6,9;7,9;8,9;9,9;11,9;12,9;14,9;15,9;17,9;18,9;20,9;21,9;22,9;" +
-                   "1,10;4,10;7,10;9,10;12,10;15,10;18,10;21,10;" +
-                   "1,11;2,11;4,11;5,11;7,11;8,11;9,11;10,11;12,11;13,11;15,11;16,11;18,11;19,11;21,11;22,11;" +
-                   "2,12;5,12;8,12;10,12;13,12;16,12;19,12;" +
-                   "2,13;3,13;5,13;6,13;8,13;9,13;10,13;11,13;13,13;14,13;16,13;17,13;19,13;20,13;" +
-                   "3,14;6,14;9,14;11,14;14,14;17,14;20,14" +
-                   ":WATER:22,2:FIRE:1,2:DOOR:11,15" +
-                   ":MONSTERS:3,3,TINH;20,3,TINH;6,5,LENXUONG;16,5,LENXUONG;9,7,TRAIPHAI;14,7,TRAIPHAI;4,9,LENXUONG;18,9,LENXUONG;8,11,TINH;15,11,TINH;11,13,TINH;5,2,LENXUONG;18,2,LENXUONG;11,8,LENXUONG;7,12,TRAIPHAI;16,12,TRAIPHAI";
-                   
+                   "0,15;1,15;2,15;3,15;4,15;5,15;6,15;7,15;8,15;9,15;10,15;12,15;13,15;14,15;15,15;16,15;17,15;18,15;19,15;20,15;21,15;22,15;23,15;" +
+                   "2,2;3,2;4,2;5,2;6,2;" +
+                   "2,3;6,3;" +
+                   "2,4;6,4;" +
+                   "2,5;3,5;4,5;5,5;6,5;" +
+                   "2,6;6,6;" +
+                   "9,2;10,2;11,2;12,2;13,2;" +
+                   "9,3;13,3;" +
+                   "9,4;13,4;" +
+                   "9,5;10,5;11,5;12,5;13,5;" +
+                   "9,6;13,6;" +
+                   "17,2;18,2;19,2;20,2;21,2;" +
+                   "17,3;21,3;" +
+                   "17,4;21,4;" +
+                   "17,5;18,5;19,5;20,5;21,5;" +
+                   "17,6;21,6;" +
+                   "1,8;3,8;5,8;7,8;9,8;11,8;13,8;15,8;17,8;19,8;21,8;22,8;" +
+                   "2,9;6,9;" +
+                   "2,10;3,10;4,10;5,10;6,10;" +
+                   "2,11;6,11;" +
+                   "2,12;6,12;" +
+                   "2,13;3,13;4,13;5,13;6,13;" +
+                   "9,9;13,9;" +
+                   "9,10;10,10;11,10;12,10;13,10;" +
+                   "9,11;13,11;" +
+                   "9,12;13,12;" +
+                   "9,13;10,13;11,13;12,13;13,13;" +
+                   "17,9;21,9;" +
+                   "17,10;18,10;19,10;20,10;21,10;" +
+                   "17,11;21,11;" +
+                   "17,12;21,12;" +
+                   "17,13;18,13;19,13;20,13;21,13" +
+                   ":WATER:22,1:FIRE:1,1:DOOR:11,15" +
+                   ":MONSTERS:" +
+                   "3,3,TRAIPHAI;4,3,TRAIPHAI;" +
+                   "10,3,TRAIPHAI;11,3,TRAIPHAI;" +
+                   "18,3,TRAIPHAI;19,3,TRAIPHAI;" +
+                   "3,11,TRAIPHAI;4,11,TRAIPHAI;" +
+                   "10,11,TRAIPHAI;11,11,TRAIPHAI;" +
+                   "18,11,TRAIPHAI;19,11,TRAIPHAI;" +
+                   "8,2,LENXUONG;8,5,LENXUONG;" +
+                   "16,2,LENXUONG;16,5,LENXUONG;" +
+                   "8,10,LENXUONG;8,13,LENXUONG;" +
+                   "16,10,LENXUONG;16,13,LENXUONG;" +
+                   "7,7,TINH;15,7,TINH;" +
+                   "1,7,TINH;22,7,TINH;" +
+                   "7,9,TINH;15,9,TINH;" +
+                  ":ITEMS:" +
+"3,7,COIN;" +     // COIN đầu tiên
+"5,9,COIN;" +     // cách COIN đầu 2 ô x và y
+"7,11,GEM;" +     // GEM cách COIN trước 2 ô
+"9,13,GEM;" +     // cách GEM trước 2 ô
+"11,7,CHEST;" +   // CHEST cách COIN đầu 2 ô theo x và y
+"13,9,CHEST;"     // cách CHEST trước 2 ô
+;        // CHEST
+
         default:
-            return generateLevelData(1);
+            return taoChuoiDuLieuCapDo(3);
     }
 }
-    
 
-    
- // Tạo Level object bằng cách parse string từ generateLevelData()
-private Level createLevel(int level) {
-    String levelData = generateLevelData(level);
-    return parseLevelData(levelData);
-}
 
-// Method parse string thành Level object
-private Level parseLevelData(String levelData) {
-    String[] parts = levelData.split(":");
-    
- 
-    String difficulty = parts[0]; // "SIMPLE", "MEDIUM", "HARD"
-    
 
-    String[] sizeParts = parts[1].split("x");
-    int width = Integer.parseInt(sizeParts[0]);
-    int height = Integer.parseInt(sizeParts[1]);
-    
+    private Level phanTichDuLieuCapDo(String duLieu) {
+        String[] phan = duLieu.split(":");
 
-    List<Point> walls = new ArrayList<>();
-    if (parts.length > 3 && parts[2].equals("WALLS")) {
-        String[] wallCoords = parts[3].split(";");
-        for (String coord : wallCoords) {
-            if (!coord.trim().isEmpty()) {
-                String[] xy = coord.split(",");
-                walls.add(new Point(Integer.parseInt(xy[0]), Integer.parseInt(xy[1])));
+        String doKho = phan[0];
+        String[] kichThuoc = phan[1].split("x");
+        int rong = Integer.parseInt(kichThuoc[0]);
+        int cao = Integer.parseInt(kichThuoc[1]);
+
+        List<Point> tuong = new ArrayList<>();
+        if (phan.length > 3 && phan[2].equals("WALLS")) {
+            String[] toaDoTuong = phan[3].split(";");
+            for (String toaDo : toaDoTuong) {
+                if (!toaDo.trim().isEmpty()) {
+                    String[] xy = toaDo.split(",");
+                    tuong.add(new Point(Integer.parseInt(xy[0]), Integer.parseInt(xy[1])));
+                }
+            }
+        }
+
+        Point viTriNuoc = null;
+        Point viTriLua = null;
+        Point cua = null;
+
+        for (int i = 4; i < phan.length - 1; i++) {
+            if (phan[i].equals("WATER")) {
+                String[] toaDo = phan[i + 1].split(",");
+                viTriNuoc = new Point(Integer.parseInt(toaDo[0]), Integer.parseInt(toaDo[1]));
+            } else if (phan[i].equals("FIRE")) {
+                String[] toaDo = phan[i + 1].split(",");
+                viTriLua = new Point(Integer.parseInt(toaDo[0]), Integer.parseInt(toaDo[1]));
+            } else if (phan[i].equals("DOOR")) {
+                String[] toaDo = phan[i + 1].split(",");
+                cua = new Point(Integer.parseInt(toaDo[0]), Integer.parseInt(toaDo[1]));
+            }
+        }
+
+        return new Level(doKho, rong, cao, tuong, viTriNuoc, viTriLua, cua);
+    }
+
+    //  COMMUNICATION 
+    
+    public void phatTinNhanChoTatCa(String tinNhan) {
+        System.out.println("Phát tới phòng " + maPhong + ": " + tinNhan);
+        for (PrintWriter writer : luongGuiTinNhan.values()) {
+            writer.println(tinNhan);
+        }
+    }
+
+    private void phatTinNhanChoNguoiKhac(String maNguoiChoiTru, String tinNhan) {
+        for (Map.Entry<String, PrintWriter> entry : luongGuiTinNhan.entrySet()) {
+            if (!entry.getKey().equals(maNguoiChoiTru)) {
+                entry.getValue().println(tinNhan);
             }
         }
     }
-    
 
-    Point waterStart = null;
-    for (int i = 4; i < parts.length - 1; i++) {
-        if (parts[i].equals("WATER")) {
-            String[] coords = parts[i + 1].split(",");
-            waterStart = new Point(Integer.parseInt(coords[0]), Integer.parseInt(coords[1]));
-            break;
-        }
-    }
+    // UTILITY  
     
+    private void luuBangXepHangRaFile() {
+        server.luuBangXepHangRaFile();
+    }
 
-    Point fireStart = null;
-    for (int i = 4; i < parts.length - 1; i++) {
-        if (parts[i].equals("FIRE")) {
-            String[] coords = parts[i + 1].split(",");
-            fireStart = new Point(Integer.parseInt(coords[0]), Integer.parseInt(coords[1]));
-            break;
-        }
-    }
+    //  GETTER  
     
+    public Map<String, Point> layViTriNguoiChoi() {
+        return viTriNguoiChoi;
+    }
 
-    Point door = null;
-    for (int i = 4; i < parts.length - 1; i++) {
-        if (parts[i].equals("DOOR")) {
-            String[] coords = parts[i + 1].split(",");
-            door = new Point(Integer.parseInt(coords[0]), Integer.parseInt(coords[1]));
-            break;
-        }
+    public PlayerType layLoaiNguoiChoi(String maNguoiChoi) {
+        return loaiNguoiChoi.get(maNguoiChoi);
     }
-    
-    return new Level(difficulty, width, height, walls, waterStart, fireStart, door);
-}
 
-    public Map<String, Point> getPlayerPositions() {
-        return playerPositions;
+    public Level layCapDoHienTai() {
+        return duLieuCapDoHienTai;
     }
-    
-    public PlayerType getPlayerType(String playerId) {
-        return playerTypes.get(playerId);
+
+    public int layChiSoCapDoHienTai() {
+        return capDoHienTai - 1;
     }
-    
-    public Level getCurrentLevel() {
-        return currentLevelData;
-    }
-    
-    public int getCurrentLevelIndex() {
-        return currentLevel - 1; // 0-based index
-    }
-    
-    public int getTotalLevels() {
+
+        public int layTongSoCapDo() {
         return Constants.TOTAL_LEVELS;
     }
-    
-   public void resetPlayerPositions() {
-    if (currentLevelData != null) {
-        for (Map.Entry<String, PlayerType> entry : playerTypes.entrySet()) { 
-            String playerId = entry.getKey();
-            PlayerType playerType = entry.getValue(); 
-            
-            if (PlayerType.WATER.equals(playerType)) { 
-                playerPositions.put(playerId, new Point(currentLevelData.getWaterStart()));
-            } else if (PlayerType.FIRE.equals(playerType)) { 
-                playerPositions.put(playerId, new Point(currentLevelData.getFireStart()));
-            }
-        }
+
+    public int laySoNguoiChoi() {
+        return danhSachNguoiChoi.size();
     }
+
+    public boolean coNguoiChoi(String maNguoiChoi) {
+        return danhSachNguoiChoi.containsKey(maNguoiChoi);
+    }
+
+    public String layMaPhong() {
+        return maPhong;
+    }
+    public PrintWriter getWriterByPlayerId(String playerId) {
+    return luongGuiTinNhan.get(playerId);
 }
 
-
-
-
-    
-    public void broadcastToAll(String message) {
-        System.out.println("Broadcasting to room " + roomId + ": " + message);
-        for (PrintWriter writer : playerWriters.values()) {
-            writer.println(message);
-        }
-    }
-    
-    private void broadcastToOthers(String excludePlayerId, String message) {
-        for (Map.Entry<String, PrintWriter> entry : playerWriters.entrySet()) {
-            if (!entry.getKey().equals(excludePlayerId)) {
-                entry.getValue().println(message);
-            }
-        }
-    }
-    
-    public int getPlayerCount() {
-        return players.size();
-    }
-    
-    public boolean hasPlayer(String playerId) {
-        return players.containsKey(playerId);
-    }
-    
-    public String getRoomId() {
-        return roomId;
-    }
-    
-  
 }
+

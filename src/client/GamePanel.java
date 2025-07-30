@@ -1,30 +1,26 @@
 package client;
 
-import utils.Constants;
+import game.Item;
 import server.Level;
 import game.Monster;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.*;
 import java.util.List;
 import javax.swing.Timer;
 import java.io.PrintWriter;
+import utils.Constants;
 
-/**
- * Panel chính hiển thị game - đã được refactor
- */
 public class GamePanel extends JPanel {
-    // Kích thước grid
+    
     private int gridWidth = 24;
     private int gridHeight = 16;
     
-    // Các thành phần chính
     private GameRenderer renderer;
     private GameLogic gameLogic;
+    private NetworkManager networkManager;
+    private SoundManager soundManager;
     
-    // Dữ liệu game
     private Point firePlayer;
     private Point waterPlayer;
     private Point myPlayer;
@@ -32,192 +28,272 @@ public class GamePanel extends JPanel {
     private Set<Point> walls;
     private Point door;
     private String status;
-    private String playerType; // "FIRE" hoặc "WATER"
+    private String playerType;
     private int currentLevelNumber = 1;
     private Level currentLevelData;
     
-    // Animation
+    private JButton readyButton;
+    private JTextArea readyStatusArea;
+    private Set<String> nguoiChoiDaSanSang = new HashSet<>();
+    
     private Timer animationTimer;
     private Timer monsterTimer;
     private boolean showWinAnimation = false;
+    private int currentTime = 60;
+
+    private int playerScore = 0;
+    private int otherPlayerScore = 0;
     
+        public void updateScore(int score) {
+            this.playerScore = score;
+            repaint();
+        }
+
+        public void updateOtherPlayerScore(int score) { 
+            this.otherPlayerScore = score;
+            repaint();
+        }
+
+        public void playItemCollectSound() {
+            if (soundManager != null) {
+                soundManager.playSoundEffect("/Sound/COLLECTION.wav");
+            }
+        }
     public GamePanel() {
         initializeComponents();
         initializeData();
         setupTimers();
+        setupUI();
         updatePanelSize();
+        
+        soundManager = new SoundManager();
+        soundManager.playSoundHitMonsterEffect("/Sound/Fireboy and Watergirl Soundtrack Main Level Theme.wav");
     }
-    
-    /**
-     * Khởi tạo các components
-     */
+
     private void initializeComponents() {
         renderer = new GameRenderer();
         gameLogic = new GameLogic(this);
-        
         setBackground(new Color(34, 34, 34));
         setFocusable(true);
     }
-    
-    /**
-     * Khởi tạo dữ liệu ban đầu
-     */
+
     private void initializeData() {
         walls = new HashSet<>();
         firePlayer = new Point(1, 1);
         waterPlayer = new Point(1, 1);
         myPlayer = new Point(1, 1);
-        status = "Đang kết nối...";
+        status = "Dang ket noi...";
     }
-    
-    /**
-     * Thiết lập các timer
-     */
+
     private void setupTimers() {
-        // Animation timer
         animationTimer = new Timer(100, e -> {
             renderer.updateAnimation();
             repaint();
         });
         animationTimer.start();
-        
-        // Monster movement timer
+
         monsterTimer = new Timer(500, e -> {
             gameLogic.updateMonsters();
             repaint();
         });
         monsterTimer.start();
     }
-    
-    /**
-     * Cập nhật kích thước panel
-     */
+
+    private void setupUI() {
+        readyButton = new JButton("Sẵn sàng");
+        readyButton.setVisible(false);
+        readyButton.addActionListener(e -> {
+            if (networkManager != null) {
+                networkManager.sendMessage("SAN_SANG");
+            }
+            readyButton.setEnabled(false);
+        });
+        this.add(readyButton);
+    }
+
     private void updatePanelSize() {
         int newWidth = gridWidth * Constants.CELL_SIZE;
         int newHeight = gridHeight * Constants.CELL_SIZE;
-        
+
         setPreferredSize(new Dimension(newWidth, newHeight));
         setSize(new Dimension(newWidth, newHeight));
-        
-        // Cập nhật parent containers
+
         Container parent = getParent();
         while (parent != null) {
             parent.revalidate();
             parent.repaint();
-            
             if (parent instanceof JFrame) {
                 ((JFrame) parent).pack();
                 break;
             }
             parent = parent.getParent();
         }
-        
         revalidate();
         repaint();
     }
-    
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         renderer.render(g, this);
+        
+        Graphics2D g2d = (Graphics2D) g;
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Arial", Font.BOLD, 24));
+        String timeText = "Thời gian: " + currentTime + "s";
+        FontMetrics fm = g2d.getFontMetrics();
+        int x = getWidth() - fm.stringWidth(timeText) - 20;
+        g2d.drawString(timeText, x, 30);
+        
+        // Hiển thị điểm số
+          String scoreText = "Điểm: " + playerScore;
+          g2d.drawString(scoreText, 20, 30);
+
+          // Hiển thị điểm đối thủ (nếu có)
+          if (otherPlayerScore > 0) {
+              String otherScoreText = "Đối thủ: " + otherPlayerScore;
+              g2d.drawString(otherScoreText, 20, 60);
+          }
+
     }
+        public int getPlayerScore() { return playerScore; }
+        public int getOtherPlayerScore() { return otherPlayerScore; }
     
-    // ==================== PUBLIC METHODS ====================
     
-    /**
-     * Set kết nối mạng
-     */
+    public void updateTimeDisplay(int timeLeft) {
+        this.currentTime = timeLeft;
+        repaint();
+    }
+
+    public void resetGameState() {
+        walls.clear();
+        firePlayer = new Point(1, 1);
+        waterPlayer = new Point(1, 1);
+        myPlayer = new Point(1, 1);
+        otherPlayer = null;
+        door = null;
+        currentLevelNumber = 1;
+        currentLevelData = null;
+        playerScore = 0;
+        otherPlayerScore = 0;
+        status = "Chưa vào phòng";
+        playerType = null;
+        currentTime = 60;
+        nguoiChoiDaSanSang.clear();
+        showWinAnimation = false;
+        repaint();
+    }
+
+    public void setNetworkManager(NetworkManager nm) {
+        this.networkManager = nm;
+    }
+
     public void setConnection(PrintWriter out) {
         gameLogic.setConnection(out);
     }
-    
-    /**
-     * Set loại người chơi
-     */
-    public void setPlayerType(String playerType) {
-        this.playerType = playerType;
+
+    public void setPlayerType(String playerTypeStr) {
+        this.playerType = playerTypeStr;
         if ("FIRE".equals(playerType)) {
             myPlayer = firePlayer;
-        } else {
+        } else if ("WATER".equals(playerType)) {
             myPlayer = waterPlayer;
         }
         repaint();
     }
-    
-    /**
-     * Load level mới
-     */
+
     public void loadLevel(String levelData) {
-        System.out.println("DEBUG: loadLevel called with: " + levelData);
-        
         showWinAnimation = false;
         parseLevelData(levelData);
         updatePanelSize();
         gameLogic.sendPlayerUpdate();
         repaint();
     }
-    
-    /**
-     * Di chuyển người chơi
-     */
+
     public boolean movePlayer(String direction) {
         return gameLogic.movePlayer(direction);
     }
-    
-    /**
-     * Cập nhật người chơi khác
-     */
+
     public void updateOtherPlayer(String playerId, int x, int y, String direction) {
         if ("FIRE".equals(playerType)) {
-            waterPlayer.setLocation(x, y);
-        } else {
-            firePlayer.setLocation(x, y);
+            if (waterPlayer != null) waterPlayer.setLocation(x, y);
+        } else if ("WATER".equals(playerType)) {
+            if (firePlayer != null) firePlayer.setLocation(x, y);
         }
         repaint();
     }
-    
-    
 
+    public void showReadyButton(boolean show) {
+        SwingUtilities.invokeLater(() -> {
+            readyButton.setVisible(show);
+            readyButton.setEnabled(true);
+            if (show) {
+                resetReadyStatus();
+            }
+        });
+    }
+
+    public void updateReadyStatus(String playerId) {
+        nguoiChoiDaSanSang.add(playerId);
+        SwingUtilities.invokeLater(() -> {
+            StringBuilder sb = new StringBuilder("Người chơi đã sẵn sàng:\n");
+            for (String id : nguoiChoiDaSanSang) {
+                sb.append("- ").append(id).append("\n");
+            }
+            if (readyStatusArea != null) {
+                readyStatusArea.setText(sb.toString());
+            }
+        });
+    }
+
+    public void resetReadyStatus() {
+        nguoiChoiDaSanSang.clear();
+        SwingUtilities.invokeLater(() -> {
+            if (readyStatusArea != null) {
+                readyStatusArea.setText("");
+            }
+        });
+    }
+
+
+   
     private void parseLevelData(String levelData) {
         String[] parts = levelData.split(":");
-        if (parts.length < 6) return;
-        
-        // Parse basic info
+        if (parts.length < 6) {
+            return;
+        }
+
         String levelName = parts[0];
         String[] dimensions = parts[1].split("x");
         gridWidth = Integer.parseInt(dimensions[0]);
         gridHeight = Integer.parseInt(dimensions[1]);
-        
-        // Parse walls
+
         parseWalls(parts);
-        
-        // Parse spawn points và door
+
         Point fireSpawn = parseSpawnPoint(parts, "FIRE");
         Point waterSpawn = parseSpawnPoint(parts, "WATER");
         door = parseSpawnPoint(parts, "DOOR");
-        
-        // Set player positions
+
+        if (firePlayer == null) firePlayer = new Point();
+        if (waterPlayer == null) waterPlayer = new Point();
         firePlayer.setLocation(fireSpawn);
         waterPlayer.setLocation(waterSpawn);
-        
+
         if ("FIRE".equals(playerType)) {
             myPlayer.setLocation(fireSpawn);
         } else if ("WATER".equals(playerType)) {
             myPlayer.setLocation(waterSpawn);
         }
-        
-        // Create level data
+
         List<Point> wallsList = new ArrayList<>(walls);
-        currentLevelData = new Level(levelName, gridWidth, gridHeight, 
-                                    wallsList, waterSpawn, fireSpawn, door);
-        
-        // Parse monsters
+        currentLevelData = new Level(levelName, gridWidth, gridHeight, wallsList, waterSpawn, fireSpawn, door);
+
         parseMonsterData(parts);
-        
-        setStatus("Level " + currentLevelNumber + " - Di chuyển đến cửa vàng!");
+        parseItemData(parts);
+        setStatus("Level " + currentLevelNumber + " - Di chuyen den cua vang!");
     }
-    
-    
+
     private void parseWalls(String[] parts) {
         walls.clear();
         if (parts.length > 3 && !parts[3].isEmpty()) {
@@ -230,35 +306,29 @@ public class GamePanel extends JPanel {
             }
         }
     }
-    
-    
-    // Parse spawn point từ level data
-     
-    private Point parseSpawnPoint(String[] parts, String type) {
+
+    private Point parseSpawnPoint(String[] parts, String typeName) {
         for (int i = 0; i < parts.length; i++) {
-            if (parts[i].equals(type) && i + 1 < parts.length) {
+            if (typeName.equals(parts[i]) && i + 1 < parts.length) {
                 String[] coords = parts[i + 1].split(",");
                 if (coords.length == 2) {
                     return new Point(Integer.parseInt(coords[0]), Integer.parseInt(coords[1]));
                 }
             }
         }
-        return new Point(0, 0); // Default
+        return new Point(0, 0);
     }
-    
-   
-     // Parse monster data từ level
-     
+
     private void parseMonsterData(String[] parts) {
         if (currentLevelData == null) return;
-        
+
         for (int i = 0; i < parts.length; i++) {
             if ("MONSTERS".equals(parts[i]) && i + 1 < parts.length) {
                 String monsterData = parts[i + 1];
                 if (!monsterData.isEmpty()) {
                     String[] monsters = monsterData.split(";");
                     int monsterId = 1;
-                    
+
                     for (String monster : monsters) {
                         String[] monsterInfo = monster.split(",");
                         if (monsterInfo.length >= 3) {
@@ -266,11 +336,8 @@ public class GamePanel extends JPanel {
                                 int x = Integer.parseInt(monsterInfo[0]);
                                 int y = Integer.parseInt(monsterInfo[1]);
                                 String type = monsterInfo[2];
-                                
                                 Monster newMonster = new Monster(monsterId++, new Point(x, y), type);
                                 currentLevelData.addMonster(newMonster);
-                                
-                                System.out.println("Added monster: " + type + " at (" + x + "," + y + ")");
                             } catch (NumberFormatException e) {
                                 System.err.println("Error parsing monster data: " + monster);
                             }
@@ -281,9 +348,59 @@ public class GamePanel extends JPanel {
             }
         }
     }
+private void parseItemData(String[] parts) {
+    if (currentLevelData == null) return;
+
+    for (int i = 0; i < parts.length; i++) {
+        if ("ITEMS".equals(parts[i]) && i + 1 < parts.length) {
+            String itemData = parts[i + 1];
+            if (!itemData.isEmpty()) {
+                String[] items = itemData.split(";");
+                int itemId = 1;
+                for (String itemStr : items) {
+                    if (itemStr.trim().isEmpty()) continue;
+                    String[] itemInfo = itemStr.split(",");
+                    if (itemInfo.length >= 3) {
+                        try {
+                            int x = Integer.parseInt(itemInfo[0]);
+                            int y = Integer.parseInt(itemInfo[1]);
+                            String type = itemInfo[2];
+                            Item item = new Item(itemId++, new Point(x, y), type);
+                            currentLevelData.addItem(item);
+                        } catch (NumberFormatException e) {
+                            System.err.println("Lỗi parse item: " + itemStr);
+                        }
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
+
+    public void playMoveSound() {
+        if (soundManager != null) {
+            soundManager.playSoundEffect("/Sound/WalkingSoundEffect.wav");
+        }
+    }
     
-    // ==================== GETTERS/SETTERS ====================
-    
+    public void playMonsterCollisionSound() {
+        if (soundManager != null) {
+            soundManager.playSoundHitMonsterEffect("/Sound/OuchDuck.wav");
+        }
+    }
+
+    public void PlayWinningSoundRound1() {
+        if (soundManager != null) {
+            soundManager.WinEffectSound("/Sound/WinningRound1.wav");
+        }
+    }
+     public void PlayLOSESound() {
+        if (soundManager != null) {
+            soundManager.WinEffectSound("/Sound/LOST.wav");
+        }
+    }
+
     public Point getFirePlayer() { return firePlayer; }
     public Point getWaterPlayer() { return waterPlayer; }
     public Point getMyPlayer() { return myPlayer; }
@@ -296,21 +413,18 @@ public class GamePanel extends JPanel {
     public int getGridWidth() { return gridWidth; }
     public int getGridHeight() { return gridHeight; }
     public boolean isShowWinAnimation() { return showWinAnimation; }
-    
+    public Point getPlayerPosition() { return myPlayer != null ? new Point(myPlayer) : null; }
+
     public void setStatus(String status) { 
         this.status = status; 
         repaint();
     }
-    
+
     public void setCurrentLevel(int level) { 
         this.currentLevelNumber = level; 
     }
-    
+
     public void setShowWinAnimation(boolean show) { 
         this.showWinAnimation = show; 
-    }
-    
-    public Point getPlayerPosition() {
-        return new Point(myPlayer);
     }
 }
