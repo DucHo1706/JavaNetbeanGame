@@ -74,7 +74,7 @@ public class GamePanel extends JPanel {
         }
     });
     timerThoiGianChoi.start();
-    readyButton.setEnabled(false);
+    readyButton.setEnabled(true);
     setStatus("Vòng chơi bắt đầu!");
 }
 

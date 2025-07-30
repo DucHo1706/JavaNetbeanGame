@@ -4,25 +4,28 @@ import game.Monster;
 import server.Level;
 import java.awt.Point;
 import java.io.PrintWriter;
-import utils.Constants;
+// Removed unused imports: import java.sql.Time; import java.util.Timer;
 
 /**
- * Xu ly logic chinh cua game
+ * Xử lý logic chính của game
  */
 public class GameLogic {
     private GamePanel gamePanel;
     private PrintWriter out;
-    
+    private SoundManager soundManager;
+
     public GameLogic(GamePanel gamePanel) {
         this.gamePanel = gamePanel;
+        // Khởi tạo SoundManager ở đây
+        soundManager = new SoundManager(); 
     }
     
     public void setConnection(PrintWriter out) {
         this.out = out;
     }
-    
+
     /**
-     * Xu ly di chuyen nguoi choi
+     * Xử lý di chuyển người chơi
      */
     public boolean movePlayer(String direction) {
         Point myPlayer = gamePanel.getMyPlayer();
@@ -30,44 +33,44 @@ public class GameLogic {
         
         Point newPosition = calculateNewPosition(myPlayer, direction);
         
-        // Kiem tra co the di chuyen khong
+        // Kiểm tra có thể di chuyển không
         if (!canMoveTo(newPosition)) {
             return false;
         }
-        // âm thanh di chuyển 
-         gamePanel.playMoveSound();
-        // Cap nhat vi tri
+        gamePanel.playMoveSound();
+
+        // Cập nhật vị trí
         myPlayer.setLocation(newPosition);
         
-        // Cap nhat vi tri trong fire/water player tuong ung
+        // Cập nhật vị trí trong fire/water player tương ứng
         updatePlayerPosition(newPosition);
         
-        // Kiem tra va cham voi monster
+        // Kiểm tra va chạm với monster (sau khi di chuyển xong)
         checkMonsterCollision();
         
-        // Kiem tra dieu kien thang
+        // Kiểm tra điều kiện thắng
         checkWinCondition();
         
         return true;
     }
     
     /**
-     * Tinh toan vi tri moi
+     * Tính toán vị trí mới
      */
     private Point calculateNewPosition(Point current, String direction) {
         Point newPos = new Point(current);
         
         switch (direction) {
-            case Constants.UP:
+            case "UP":
                 newPos.y--;
                 break;
-            case Constants.DOWN:
+            case "DOWN":
                 newPos.y++;
                 break;
-            case Constants.LEFT:
+            case "LEFT":
                 newPos.x--;
                 break;
-            case Constants.RIGHT:
+            case "RIGHT":
                 newPos.x++;
                 break;
         }
@@ -76,16 +79,16 @@ public class GameLogic {
     }
     
     /**
-     * Kiem tra co the di chuyen den vi tri nay khong
+     * Kiểm tra có thể di chuyển đến vị trí này không
      */
     private boolean canMoveTo(Point position) {
-        // Kiem tra bien
+        // Kiểm tra biên
         if (position.x < 0 || position.x >= gamePanel.getGridWidth() ||
             position.y < 0 || position.y >= gamePanel.getGridHeight()) {
             return false;
         }
         
-        // Kiem tra tuong
+        // Kiểm tra tường
         if (gamePanel.getWalls().contains(position)) {
             return false;
         }
@@ -94,23 +97,19 @@ public class GameLogic {
     }
     
     /**
-     * Cap nhat vi tri player 
+     * Cập nhật vị trí player tương ứng
      */
     private void updatePlayerPosition(Point newPosition) {
         String playerType = gamePanel.getPlayerType();
         if ("FIRE".equals(playerType)) {
-            if (gamePanel.getFirePlayer() != null) {
-                gamePanel.getFirePlayer().setLocation(newPosition);
-            }
+            gamePanel.getFirePlayer().setLocation(newPosition);
         } else if ("WATER".equals(playerType)) {
-            if (gamePanel.getWaterPlayer() != null) {
-                gamePanel.getWaterPlayer().setLocation(newPosition);
-            }
+            gamePanel.getWaterPlayer().setLocation(newPosition);
         }
     }
     
     /**
-     * Kiem tra va cham voi monster
+     * Kiểm tra va chạm với monster và phát âm thanh nếu có
      */
     public void checkMonsterCollision() {
         Level currentLevel = gamePanel.getCurrentLevelData();
@@ -119,43 +118,43 @@ public class GameLogic {
         if (currentLevel == null || myPlayer == null) return;
         
         Monster monsterAtMyPos = currentLevel.getMonsterAt(myPlayer.x, myPlayer.y);
+        // Chỉ phát âm thanh và reset người chơi NẾU THỰC SỰ VA CHẠM
         if (monsterAtMyPos != null) {
             gamePanel.playMonsterCollisionSound();
-            System.out.println("VA CHAM! Player cham monster tai " + myPlayer);
+            System.out.println("VA CHẠM! Player chạm monster tại " + myPlayer);
+            // Phát âm thanh va chạm quái vật
             resetPlayerToStart();
         }
     }
-    
+
     /**
-     * Reset player ve vi tri ban dau
+     * Reset player về vị trí ban đầu
      */
     private void resetPlayerToStart() {
         Level currentLevel = gamePanel.getCurrentLevelData();
         if (currentLevel == null) return;
         
         String playerType = gamePanel.getPlayerType();
-        
-        Point waterStart = currentLevel.getWaterStart();
-        Point fireStart = currentLevel.getFireStart();
-        
-        if ("FIRE".equals(playerType)) {
-            if (gamePanel.getFirePlayer() != null && fireStart != null) {
-                gamePanel.getFirePlayer().setLocation(fireStart);
-                gamePanel.getMyPlayer().setLocation(fireStart);
-            }
-        } else if ("WATER".equals(playerType)) {
-            if (gamePanel.getWaterPlayer() != null && waterStart != null) {
-                gamePanel.getWaterPlayer().setLocation(waterStart);
-                gamePanel.getMyPlayer().setLocation(waterStart);
-            }
+        Point myPlayer = gamePanel.getMyPlayer();
+
+        if("FIRE".equals(playerType) || "WATER".equals(playerType))
+        {
+            Point waterStart = currentLevel.getWaterStart();
+            Point fireStart = currentLevel.getFireStart();
+            // Đảm bảo bạn đang gán đúng vị trí bắt đầu cho đúng người chơi
+            // myPlayer.setLocation(waterStart); // Dòng này có thể không cần thiết nếu myPlayer đã được update
+            // myPlayer.setLocation(fireStart); // Dòng này có thể không cần thiết
+            gamePanel.getWaterPlayer().setLocation(waterStart);
+            gamePanel.getFirePlayer().setLocation(fireStart);
+            sendPlayerUpdate();
+
         }
-        
-        gamePanel.setStatus("Bi monster tan cong! Quay lai vi tri ban dau.");
-        sendPlayerUpdate();
+
+        gamePanel.setStatus("Bị monster tấn công! Quay lại vị trí ban đầu.");
     }
     
     /**
-     * Kiem tra dieu kien thang
+     * Kiểm tra điều kiện thắng
      */
     private void checkWinCondition() {
         Point door = gamePanel.getDoor();
@@ -167,38 +166,40 @@ public class GameLogic {
             boolean waterAtDoor = waterPlayer.equals(door);
             
             if (fireAtDoor && waterAtDoor) {
+                gamePanel.PlayWinningSoundRound1();
                 gamePanel.setShowWinAnimation(true);
-                gamePanel.setStatus("Hoan thanh man choi! Chuyen sang man tiep theo...");
+                gamePanel.setStatus("Hoàn thành màn chơi! Chuyển sang màn tiếp theo...");
                 
-                // Gui tin hieu hoan thanh man
+                // Gửi tín hiệu hoàn thành màn
                 if (out != null) {
-                    out.println(Constants.HOAN_THANH_CAP_DO);
+                    out.println("LEVEL_COMPLETE");
                 }
             }
         }
     }
     
     /**
-     * Gui cap nhat vi tri player
+     * Gửi cập nhật vị trí player
      */
     public void sendPlayerUpdate() {
         if (out == null) return;
         
         Point myPlayer = gamePanel.getMyPlayer();
         if (myPlayer != null) {
-            String message = Constants.DI_CHUYEN + ":" + myPlayer.x + ":" + myPlayer.y;
+            String message = "PLAYER_UPDATE:" + myPlayer.x + ":" + myPlayer.y;
             out.println(message);
         }
     }
     
     /**
-     * Cap nhat monsters
+     * Cập nhật monsters
      */
     public void updateMonsters() {
         Level currentLevel = gamePanel.getCurrentLevelData();
         if (currentLevel != null) {
             currentLevel.updateMonsters();
-            checkMonsterCollision();
+            // Kiểm tra va chạm sau khi quái vật di chuyển
+            checkMonsterCollision(); 
         }
     }
 }
