@@ -41,5 +41,12 @@ public static final String RROI_PHONG = "RROI_PHONG";
 
     public static final String NUT_BAT_DAU = "NUT_BAT_DAU";
 
+    public static final String ITEM_COIN = "COIN";
+    public static final String ITEM_GEM = "GEM";
+    public static final String ITEM_CHEST = "CHEST";
+
     
+    public static final int COIN_VALUE = 10;
+    public static final int GEM_VALUE = 30;
+    public static final int CHEST_VALUE = 50;
 }

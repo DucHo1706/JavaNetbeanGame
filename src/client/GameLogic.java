@@ -1,9 +1,11 @@
 package client;
 
+import game.Item;
 import game.Monster;
 import server.Level;
 import java.awt.Point;
 import java.io.PrintWriter;
+import utils.Constants;
 // Removed unused imports: import java.sql.Time; import java.util.Timer;
 
 /**
@@ -38,7 +40,7 @@ public class GameLogic {
             return false;
         }
         gamePanel.playMoveSound();
-
+        checkItemCollision(gamePanel.getMyPlayer());
         // Cập nhật vị trí
         myPlayer.setLocation(newPosition);
         
@@ -141,9 +143,6 @@ public class GameLogic {
         {
             Point waterStart = currentLevel.getWaterStart();
             Point fireStart = currentLevel.getFireStart();
-            // Đảm bảo bạn đang gán đúng vị trí bắt đầu cho đúng người chơi
-            // myPlayer.setLocation(waterStart); // Dòng này có thể không cần thiết nếu myPlayer đã được update
-            // myPlayer.setLocation(fireStart); // Dòng này có thể không cần thiết
             gamePanel.getWaterPlayer().setLocation(waterStart);
             gamePanel.getFirePlayer().setLocation(fireStart);
             sendPlayerUpdate();
@@ -202,4 +201,42 @@ public class GameLogic {
             checkMonsterCollision(); 
         }
     }
+    public boolean checkItemCollision(Point playerPos) {
+    if (gamePanel.getCurrentLevelData() == null) return false;
+    
+   Item item = gamePanel.getCurrentLevelData().getItemAt(playerPos);
+    if (item != null && !item.isCollected()) {
+        // Đánh dấu item đã được thu thập
+        item.setCollected(true);
+
+        // Cộng điểm tùy loại item
+        int points = 0;
+        switch (item.getType()) {
+            case Constants.ITEM_COIN:
+                points = Constants.COIN_VALUE;
+                break;
+            case Constants.ITEM_GEM:
+                points = Constants.GEM_VALUE;
+                break;
+            case Constants.ITEM_CHEST:
+                points = Constants.CHEST_VALUE;
+                break;
+        }
+
+        // Cộng điểm cho người chơi
+        int newScore = gamePanel.getPlayerScore() + points;
+        gamePanel.updateScore(newScore);
+
+        // Phát âm thanh
+        gamePanel.playItemCollectSound();
+
+        // Gửi thông tin thu thập item lên server
+        if (out != null) {
+            out.println("COLLECT_ITEM:" + item.getId() + ":" + points);
+        }
+
+        return true;
+    }
+    return false;
+}
 }

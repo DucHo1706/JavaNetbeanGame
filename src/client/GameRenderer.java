@@ -1,5 +1,6 @@
 package client;
 
+import game.Item;
 import utils.Constants;
 import game.Monster;
 import server.Level;
@@ -35,7 +36,62 @@ public class GameRenderer {
             loadMonsterImages();
              loadPlayerImages(); 
              loadWallImage();
+             loadItemImages();
+    }
+    private BufferedImage coinImage;
+private BufferedImage gemImage;
+private BufferedImage chestImage;
+private BufferedImage keyImage;
+
+private void loadItemImages() {
+    coinImage = loadImage("/images/Coin.png");
+    gemImage = loadImage("/images/GEM.png");
+    chestImage = loadImage("/images/CHEST.png");
+   
+}
+
+private BufferedImage loadImage(String path) {
+    try (InputStream is = getClass().getResourceAsStream(path)) {
+        if (is != null) {
+            return ImageIO.read(is);
         }
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+    return null;
+}
+
+private void drawItems(Graphics2D g2d, Level level) {
+    if (level == null) return;
+    for (Item item : level.getItems()) {
+        if (!item.isCollected()) {
+            drawItem(g2d, item);
+        }
+    }
+}
+
+private void drawItem(Graphics2D g2d, Item item) {
+    Point pos = item.getPosition();
+    int x = pos.x * Constants.CELL_SIZE;
+    int y = pos.y * Constants.CELL_SIZE;
+    BufferedImage img = null;
+    switch (item.getType()) {
+        case Constants.ITEM_COIN:
+            img = coinImage; break;
+        case Constants.ITEM_GEM:
+            img = gemImage; break;
+        case Constants.ITEM_CHEST:
+            img = chestImage; break;
+      
+    }
+    if (img != null) {
+        g2d.drawImage(img, x, y, Constants.CELL_SIZE, Constants.CELL_SIZE, null);
+    } else {
+        // Vẽ hình tròn làm đại diện nếu không có ảnh
+        g2d.setColor(Color.YELLOW);
+        g2d.fillOval(x + 4, y + 4, Constants.CELL_SIZE - 8, Constants.CELL_SIZE - 8);
+    }
+}
     public void render(Graphics g, GamePanel panel) {
         Graphics2D g2d = (Graphics2D) g;
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -48,7 +104,7 @@ public class GameRenderer {
         
         // Vẽ walls
         drawWalls(g2d, panel.getWalls());
-        
+        drawItems(g2d, panel.getCurrentLevelData());
         // Vẽ door
         drawDoor(g2d, panel.getDoor());
         
@@ -60,13 +116,16 @@ public class GameRenderer {
         
         // Vẽ status
         drawStatus(g2d, panel);
+            
+     
         
         // Vẽ win animation nếu có
         if (panel.isShowWinAnimation()) {
             drawWinAnimation(g2d, panel);
         }
     }
-  
+
+
   private void drawBackground(Graphics2D g2d, GamePanel panel) {
     if (backgroundImage != null) {
         g2d.drawImage(backgroundImage, 0, 0, panel.getWidth(), panel.getHeight(), null);

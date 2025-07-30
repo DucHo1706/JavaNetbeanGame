@@ -15,6 +15,7 @@ public class GameMessageProcessor implements IMessageHandler {
         if (parentFrame instanceof GameClient) {
             this.gameClient = (GameClient) parentFrame;
         }
+        
     }
 
     @Override
@@ -53,7 +54,7 @@ public class GameMessageProcessor implements IMessageHandler {
                 break;
             case Constants.BAT_DAU_TRO_CHOI:
                 handleGameStart(parts);
-                gamePanel.batDauVongMoi();
+             
                 break;
             case Constants.DU_LIEU_CAP_DO:
                 handleLevelData(parts);
@@ -68,7 +69,7 @@ public class GameMessageProcessor implements IMessageHandler {
                 if (parts.length > 1) {
                     try {
                         int giayConLai = Integer.parseInt(parts[1]);
-                        gamePanel.updateTimeRemaining(giayConLai);
+                   
                     } catch (NumberFormatException e) {
                         System.err.println("Dữ liệu thời gian không hợp lệ: " + parts[1]);
                     }
@@ -76,6 +77,7 @@ public class GameMessageProcessor implements IMessageHandler {
                 break;
             case "MAN_KET_THUC":
                 gamePanel.setStatus("Màn chơi đã kết thúc!");
+                gamePanel.PlayLOSESound();
                 break;
             case "YEU_CAU_SAN_SANG":
                 gamePanel.showReadyButton(true);
@@ -98,11 +100,39 @@ public class GameMessageProcessor implements IMessageHandler {
                 gameClient.leaveRoomAndBackToLobby();
             }
             break;
+             case "TIME_UPDATE":
+            if (parts.length > 1) {
+                try {
+                    int timeLeft = Integer.parseInt(parts[1]);
+                    handleTimeUpdate(timeLeft);
+                } catch (NumberFormatException e) {
+                    System.err.println("Lỗi parse thời gian: " + parts[1]);
+                }
+            }
+            break;
+            case "UPDATE_SCORE":
+    if (parts.length > 1) {
+        try {
+            int newScore = Integer.parseInt(parts[1]);
+            gamePanel.updateScore(newScore);
+        } catch (NumberFormatException e) {
+            System.err.println("Lỗi parse điểm: " + parts[1]);
+        }
+    }
+    break;
+
+            
             default:
                 System.out.println("Lệnh không xác định: " + command);
         }
     }
-
+private void handleTimeUpdate(int timeLeft) {
+    SwingUtilities.invokeLater(() -> {
+        if (gamePanel != null) {
+            gamePanel.updateTimeDisplay(timeLeft);
+        }
+    });
+}
    private void handleRoomJoined(String[] parts) {
     gamePanel.resetGameState();
     if (parts.length > 2) {
