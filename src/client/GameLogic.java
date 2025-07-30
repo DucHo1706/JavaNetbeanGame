@@ -34,7 +34,8 @@ public class GameLogic {
         if (!canMoveTo(newPosition)) {
             return false;
         }
-        
+        // âm thanh di chuyển 
+         gamePanel.playMoveSound();
         // Cap nhat vi tri
         myPlayer.setLocation(newPosition);
         
@@ -119,6 +120,7 @@ public class GameLogic {
         
         Monster monsterAtMyPos = currentLevel.getMonsterAt(myPlayer.x, myPlayer.y);
         if (monsterAtMyPos != null) {
+            gamePanel.playMonsterCollisionSound();
             System.out.println("VA CHAM! Player cham monster tai " + myPlayer);
             resetPlayerToStart();
         }

@@ -44,13 +44,18 @@ public class GamePanel extends JPanel {
     private JTextArea readyStatusArea; // Hiển thị người chơi đã sẵn sàng
     
     
+     private SoundManager soundManager;
+    
         // 1. Thêm biến toàn cục ở đầu class GamePanel
     private int tongThoiGianChoi = 0;      // Tổng thời gian chơi tích lũy (giây)
     private int thoiGianVongHienTai = 0;   // Thời gian vòng hiện tại (giây)
     private final int THOI_GIAN_VONG = 60; // Thời gian giới hạn mỗi vòng (60 giây)
     private Timer timerThoiGianChoi;        // Timer đếm thời gian chơi
     private JLabel labelThoiGian;
-        // 2. Hàm bắt đầu đếm thời gian vòng chơi mới
+    
+    
+    
+     // 2. Hàm bắt đầu đếm thời gian vòng chơi mới
    public void batDauVongMoi() {
     if (timerThoiGianChoi != null && timerThoiGianChoi.isRunning()) {
         timerThoiGianChoi.stop();
@@ -166,11 +171,15 @@ private void capNhatHienThiThoiGian() {
         });
         this.add(readyButton);
 
-        // Trong hàm khởi tạo GamePanel hoặc hàm initUI(), thêm:
-  labelThoiGian = new JLabel("Tổng thời gian chơi: 0 giây");
-  labelThoiGian.setFont(new Font("Arial", Font.BOLD, 14));
-  labelThoiGian.setForeground(Color.WHITE); // hoặc màu phù hợp
-  this.add(labelThoiGian);
+            // Trong hàm khởi tạo GamePanel hoặc hàm initUI(), thêm:
+        labelThoiGian = new JLabel("Tổng thời gian chơi: 0 giây");
+        labelThoiGian.setFont(new Font("Arial", Font.BOLD, 14));
+        labelThoiGian.setForeground(Color.WHITE); // hoặc màu phù hợp
+        this.add(labelThoiGian);
+
+        soundManager = new SoundManager();
+        soundManager.playBackgroundMusic("/Sound/Fireboy and Watergirl Soundtrack Main Level Theme.wav");
+  
     }
 
     public void showReadyButton(boolean show) {
@@ -517,4 +526,19 @@ private void capNhatHienThiThoiGian() {
         return myPlayer != null ? new Point(myPlayer) : null;
     }
     
+    public void playMoveSound() {
+    if (soundManager != null) {
+        // Thay đổi đường dẫn này thành file âm thanh 
+        soundManager.playSoundEffect("/Sound/aa.wav");
+    }
+    }
+    
+    public void playMonsterCollisionSound() {
+        if (soundManager != null) {
+           
+            soundManager.playSoundHitMonsterEffect("/Sound/744980__aalorv__donald-duck-ouch.wav");
+            
+        }
+    }
+
 }
