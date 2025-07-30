@@ -529,15 +529,23 @@ private void capNhatHienThiThoiGian() {
     public void playMoveSound() {
     if (soundManager != null) {
         // Thay đổi đường dẫn này thành file âm thanh 
-        soundManager.playSoundEffect("/Sound/aa.wav");
+        soundManager.playSoundEffect("/Sound/WalkingSoundEffect.wav");
     }
     }
     
     public void playMonsterCollisionSound() {
         if (soundManager != null) {
            
-            soundManager.playSoundHitMonsterEffect("/Sound/744980__aalorv__donald-duck-ouch.wav");
+            soundManager.playSoundHitMonsterEffect("/Sound/OuchDuck.wav");
             
+        }
+    }
+
+    public void PlayWinningSoundRound1()
+    {
+        if(soundManager != null)
+        {
+            soundManager.WinEffectSound("/Sound/WinningRound1.wav");
         }
     }
 
